@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Folder as FolderIcon, Plus, Search } from 'lucide-react';
+import { ListRowMenu } from './ListRowMenu';
+import { Plus } from 'lucide-react';
+import { ModuleFolderChips } from './ModuleFolderChips';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { ContactView } from './ContactView';
@@ -8,8 +10,7 @@ import { ContactView } from './ContactView';
 interface Props { initialFolder: string | null }
 export function ContactsModule({ initialFolder }: Props) {
   const { contacts, folders, selection, selectContact, dispatch } = useApp();
-  const [query, setQuery] = useState('');
-  const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder); // null = all, '' = uncategorized
+  const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
 
   const contactFolders = useMemo(
     () => folders.filter((f) => f.top_category === 'contacts').sort((a, b) => a.name.localeCompare(b.name)),
@@ -17,26 +18,17 @@ export function ContactsModule({ initialFolder }: Props) {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return contacts
       .filter((c) => {
         if (folderFilter === null) return true;
         if (folderFilter === '') return !c.folder_id;
         return c.folder_id === folderFilter;
       })
-      .filter((c) => {
-        if (!q) return true;
-        return c.name.toLowerCase().includes(q)
-          || c.company.toLowerCase().includes(q)
-          || c.role.toLowerCase().includes(q)
-          || c.email.toLowerCase().includes(q)
-          || c.phone.includes(q);
-      })
       .sort((a, b) => {
         if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
-  }, [contacts, query, folderFilter]);
+  }, [contacts, folderFilter]);
 
   const selectedId = selection.kind === 'contact' ? selection.contact_id : null;
 
@@ -67,41 +59,65 @@ export function ContactsModule({ initialFolder }: Props) {
     <div className="module-pane">
       <div className="module-header">
         <h1>Contacts</h1>
-        <span className="module-count">{filtered.length} of {contacts.length}</span>
-        <div className="module-search">
-          <Search size={13} />
-          <input placeholder="Search name, company, phone, email..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <span className="module-count">{filtered.length}{filtered.length !== contacts.length ? ` of ${contacts.length}` : ''}</span>
+        <ModuleFolderChips
+          folders={contactFolders}
+          selected={folderFilter}
+          onSelect={setFolderFilter}
+        />
+        <div className="module-header-right">
+          <button className="ghost-btn" onClick={newFolder}>+ Folder</button>
+          <button className="primary-btn" onClick={newContact}><Plus size={12} /> New</button>
         </div>
-        <button className="ghost-btn" onClick={newFolder}>+ Folder</button>
-        <button className="primary-btn" onClick={newContact}><Plus size={12} /> New contact</button>
       </div>
-
-      {contactFolders.length > 0 && (
-        <div className="module-folders">
-          <button className={`module-folder-chip ${folderFilter === null ? 'is-selected' : ''}`} onClick={() => setFolderFilter(null)}>All</button>
-          <button className={`module-folder-chip ${folderFilter === '' ? 'is-selected' : ''}`} onClick={() => setFolderFilter('')}>Uncategorized</button>
-          {contactFolders.map((f) => (
-            <button key={f.id} className={`module-folder-chip ${folderFilter === f.id ? 'is-selected' : ''}`} onClick={() => setFolderFilter(f.id)}>
-              <FolderIcon size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-              {f.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="module-body">
         <div className="module-list">
           {filtered.length === 0 ? (
             <div className="module-empty">No contacts match.</div>
           ) : (
-            filtered.map((c) => (
-              <div key={c.id} className={`module-list-row ${selectedId === c.id ? 'is-selected' : ''}`} onClick={() => selectContact(c.id)}>
-                <div className="row-main">
-                  <div className="row-title">{c.is_favorite ? '★ ' : ''}{c.name}</div>
-                  <div className="row-sub">{c.company || c.role || c.email || c.phone || '—'}</div>
-                </div>
-              </div>
-            ))
+            filtered.map((c) => {
+              const togglePin = async () => {
+                try {
+                  const saved = await db.saveContact({
+                    id: c.id, folder_id: c.folder_id, name: c.name, role: c.role, company: c.company,
+                    phone: c.phone, email: c.email, notes: c.notes, tags: c.tags, is_favorite: !c.is_favorite,
+                  });
+                  dispatch({ type: 'UPSERT_CONTACT', contact: saved });
+                } catch (err) { toast.error(String(err)); }
+              };
+              const rename = async () => {
+                const next = window.prompt('Rename contact', c.name);
+                if (!next?.trim() || next.trim() === c.name) return;
+                try {
+                  const saved = await db.saveContact({
+                    id: c.id, folder_id: c.folder_id, name: next.trim(), role: c.role, company: c.company,
+                    phone: c.phone, email: c.email, notes: c.notes, tags: c.tags, is_favorite: c.is_favorite,
+                  });
+                  dispatch({ type: 'UPSERT_CONTACT', contact: saved });
+                } catch (err) { toast.error(String(err)); }
+              };
+              const remove = async () => {
+                if (!window.confirm(`Delete "${c.name}"?`)) return;
+                try { await db.deleteContact(c.id); dispatch({ type: 'REMOVE_CONTACT', id: c.id }); }
+                catch (err) { toast.error(String(err)); }
+              };
+              return (
+                <ListRowMenu key={c.id}
+                  className={`module-list-row ${selectedId === c.id ? 'is-selected' : ''}`}
+                  onClick={() => selectContact(c.id)}
+                  items={[
+                    { label: c.is_favorite ? 'Unpin' : 'Pin', onClick: togglePin },
+                    { label: 'Rename', onClick: rename },
+                    { label: 'Delete', onClick: remove, danger: true },
+                  ]}>
+                  <div className="row-main">
+                    <div className="row-title">{c.is_favorite ? '★ ' : ''}{c.name}</div>
+                    <div className="row-sub">{c.company || c.role || c.email || c.phone || '—'}</div>
+                  </div>
+                </ListRowMenu>
+              );
+            })
           )}
         </div>
         <div className="module-detail">

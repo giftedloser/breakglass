@@ -24,12 +24,13 @@ export function TitleBar() {
         <img className="title-bar-icon" src="/src/breakglass.png" alt="" draggable={false} />
         <span className="title-bar-name">BreakGlass</span>
       </div>
+      <div className="title-bar-spacer" data-tauri-drag-region />
       <button className="title-bar-search" onClick={() => dispatch({ type: 'TOGGLE_SEARCH', value: true })}>
         <Search size={13} />
         <span>Search anything...</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <div data-tauri-drag-region className="title-bar-spacer" />
+      <div className="title-bar-spacer" data-tauri-drag-region />
       <div className="title-bar-controls">
         <button className="tb-btn" title="Minimize" onClick={() => win.minimize()}><Minus size={14} /></button>
         <button className="tb-btn" title={maximized ? 'Restore' : 'Maximize'} onClick={() => win.toggleMaximize()}>

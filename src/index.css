@@ -67,8 +67,9 @@ input, textarea { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 8px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
   padding: 4px 10px; cursor: pointer; color: var(--text-muted);
-  font-size: 12px; min-width: 280px; max-width: 420px; margin-left: 14px;
+  font-size: 12px; width: 380px; max-width: 50%;
   -webkit-app-region: no-drag;
+  flex-shrink: 0;
 }
 .title-bar-search:hover { color: var(--text); background: var(--panel-2); }
 .title-bar-search span { flex: 1; text-align: left; }
@@ -578,31 +579,22 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 .module-pane { overflow: hidden; display: flex; flex-direction: column; height: 100%; }
 .module-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 18px; border-bottom: 1px solid var(--line);
+  padding: 8px 16px; border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.module-header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-.module-header .module-count { color: var(--text-dim); font-size: 11px; margin-right: auto; }
-.module-search {
-  flex: 1; min-width: 200px; max-width: 320px;
-  display: flex; align-items: center; gap: 6px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
-  padding: 3px 8px;
-}
-.module-search input {
-  flex: 1; background: transparent; border: 0; outline: none; font-size: 12.5px;
-}
+.module-header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text); }
+.module-header .module-count { color: var(--text-dim); font-size: 11px; }
 .module-header .ghost-btn,
 .module-header .primary-btn { padding: 3px 9px; font-size: 11.5px; }
+.module-header-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 
-.module-folders {
-  padding: 6px 18px; border-bottom: 1px solid var(--line-soft);
+.module-chips-inline {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  padding-left: 8px; border-left: 1px solid var(--line-soft);
 }
-.module-folders + .module-folders { padding-top: 0; border-bottom: 1px solid var(--line-soft); }
 .module-folder-chip {
   background: transparent; border: 1px solid var(--line); color: var(--text-muted);
-  font-size: 10.5px; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  font-size: 10.5px; padding: 2px 9px; border-radius: 999px; cursor: pointer;
   line-height: 1.5;
 }
 .module-folder-chip:hover { color: var(--text); background: var(--panel-2); }

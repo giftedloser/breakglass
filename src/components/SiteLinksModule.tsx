@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, Folder as FolderIcon, Plus, Search, Star } from 'lucide-react';
+import { ExternalLink, Plus, Star } from 'lucide-react';
+import { ModuleFolderChips } from './ModuleFolderChips';
+import { ListRowMenu } from './ListRowMenu';
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
 import { parseProperties } from '../lib/kinds';
@@ -9,7 +11,6 @@ interface Props { initialFolder: string | null }
 
 export function SiteLinksModule({ initialFolder }: Props) {
   const { entries, folders, selectEntry, dispatch } = useApp();
-  const [query, setQuery] = useState('');
   const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
 
   const linkFolders = useMemo(
@@ -18,22 +19,14 @@ export function SiteLinksModule({ initialFolder }: Props) {
   );
 
   const links = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return entries
       .filter((e) => e.top_category === 'sitelinks')
       .filter((e) => folderFilter === null ? true : folderFilter === '' ? !e.folder_id : e.folder_id === folderFilter)
-      .filter((e) => {
-        if (!q) return true;
-        const desc = parseProperties(e.properties).description ?? '';
-        return e.title.toLowerCase().includes(q)
-          || (e.url || '').toLowerCase().includes(q)
-          || desc.toLowerCase().includes(q);
-      })
       .sort((a, b) => {
         if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
         return a.title.localeCompare(b.title);
       });
-  }, [entries, query, folderFilter]);
+  }, [entries, folderFilter]);
 
   const newLink = async () => {
     const title = window.prompt('Title for new link');
@@ -66,26 +59,12 @@ export function SiteLinksModule({ initialFolder }: Props) {
       <div className="module-header">
         <h1>Site Links</h1>
         <span className="module-count">{links.length}</span>
-        <div className="module-search">
-          <Search size={13} />
-          <input placeholder="Search links..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        <ModuleFolderChips folders={linkFolders} selected={folderFilter} onSelect={setFolderFilter} />
+        <div className="module-header-right">
+          <button className="ghost-btn" onClick={newFolder}>+ Folder</button>
+          <button className="primary-btn" onClick={newLink}><Plus size={12} /> New</button>
         </div>
-        <button className="ghost-btn" onClick={newFolder}>+ Folder</button>
-        <button className="primary-btn" onClick={newLink}><Plus size={12} /> New link</button>
       </div>
-
-      {linkFolders.length > 0 && (
-        <div className="module-folders">
-          <button className={`module-folder-chip ${folderFilter === null ? 'is-selected' : ''}`} onClick={() => setFolderFilter(null)}>All</button>
-          <button className={`module-folder-chip ${folderFilter === '' ? 'is-selected' : ''}`} onClick={() => setFolderFilter('')}>Uncategorized</button>
-          {linkFolders.map((f) => (
-            <button key={f.id} className={`module-folder-chip ${folderFilter === f.id ? 'is-selected' : ''}`} onClick={() => setFolderFilter(f.id)}>
-              <FolderIcon size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-              {f.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {links.length === 0
         ? <div className="module-empty">No site links yet. Click "New link" to add one.</div>
@@ -93,8 +72,31 @@ export function SiteLinksModule({ initialFolder }: Props) {
           <div className="sitelinks-grid">
             {links.map((e) => {
               const desc = parseProperties(e.properties).description ?? '';
+              const togglePin = async () => {
+                try {
+                  const saved = await db.saveEntry({
+                    id: e.id, title: e.title, top_category: e.top_category, folder_id: e.folder_id,
+                    app_id: e.app_id, kind: e.kind, properties: e.properties,
+                    is_favorite: !e.is_favorite, content: e.content, url: e.url, tags: e.tags,
+                  });
+                  dispatch({ type: 'UPSERT_ENTRY', entry: saved });
+                } catch (err) { toast.error(String(err)); }
+              };
+              const remove = async () => {
+                if (!window.confirm(`Delete link "${e.title}"?`)) return;
+                try { await db.deleteEntry(e.id); dispatch({ type: 'REMOVE_ENTRY', id: e.id }); }
+                catch (err) { toast.error(String(err)); }
+              };
               return (
-                <div key={e.id} className="sitelink-card" onClick={() => openExternal(e.url)} title={e.url ?? ''}>
+                <ListRowMenu key={e.id}
+                  className="sitelink-card"
+                  onClick={() => openExternal(e.url)}
+                  items={[
+                    { label: 'Open URL', onClick: () => openExternal(e.url) },
+                    { label: 'Edit', onClick: () => selectEntry(e.id) },
+                    { label: e.is_favorite ? 'Unpin' : 'Pin', onClick: togglePin },
+                    { label: 'Delete', onClick: remove, danger: true },
+                  ]}>
                   <div className="sl-title">
                     <ExternalLink size={12} style={{ verticalAlign: 'middle', marginRight: 6 }} />
                     {e.is_favorite && <Star size={11} className="star-mark filled" style={{ verticalAlign: 'middle', marginRight: 4 }} />}
@@ -103,7 +105,7 @@ export function SiteLinksModule({ initialFolder }: Props) {
                   <div className="sl-url">{e.url || 'no URL'}</div>
                   {desc && <div className="sl-desc">{desc}</div>}
                   <button className="sl-edit" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
-                </div>
+                </ListRowMenu>
               );
             })}
           </div>
