@@ -136,6 +136,63 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
         conn.pragma_update(None, "foreign_keys", "ON")?;
     }
 
+    // Seed vendor contacts if the contacts table is empty (fresh install).
+    let contact_count: i64 = conn.query_row("SELECT COUNT(*) FROM contacts", [], |r| r.get(0))?;
+    if contact_count == 0 {
+        seed_vendor_contacts(conn)?;
+    }
+
+    Ok(())
+}
+
+struct SeedContact {
+    id: &'static str,
+    name: &'static str,
+    role: &'static str,
+    company: &'static str,
+    phone: &'static str,
+    email: &'static str,
+    notes: &'static str,
+    tags: &'static str,
+}
+
+fn seed_vendor_contacts(conn: &Connection) -> rusqlite::Result<()> {
+    const TS: &str = "2026-05-31T00:00:00Z";
+    let contacts = [
+        SeedContact { id: "vendor-agilysys", name: "Agilysys", role: "Vendor for POS systems", company: "IT", phone: "+1 (800) 327-7088", email: "ig_support@agilysys.com", notes: "Access: Admin\nAccount: N/A", tags: r#"["vendor","it","pos"]"# },
+        SeedContact { id: "vendor-alien-vault-usm", name: "Alien Vault/USM", role: "Managed security service provider", company: "IT", phone: "+1 (650) 713-3333", email: "", notes: "Access: Users\nAccount: Admin", tags: r#"["vendor","it","security"]"# },
+        SeedContact { id: "vendor-avigilon", name: "Avigilon", role: "Vendor for ACM systems", company: "Surveillance", phone: "+1 (213) 297-2180", email: "", notes: "Access: Admin\nAccount: Admin", tags: r#"["vendor","surveillance","acm"]"# },
+        SeedContact { id: "vendor-biometrica", name: "Biometrica's Visual Casino VC7", role: "Software for casino floor maps", company: "IT", phone: "+1 (303) 565-5394", email: "avsupport@e2optics.com", notes: "Access: Overview", tags: r#"["vendor","it","casino-floor"]"# },
+        SeedContact { id: "vendor-broadcom", name: "Broadcom", role: "Brocade switch services", company: "IT", phone: "+1 (800) 752-8061", email: "partner.helpdesk@broadcom.com", notes: "Access: Admin", tags: r#"["vendor","it","network","brocade"]"# },
+        SeedContact { id: "vendor-converge-point", name: "Converge Point", role: "Policy documentation management", company: "IT", phone: "", email: "support@convergepoint.com", notes: "Access: Admin", tags: r#"["vendor","it","policy"]"# },
+        SeedContact { id: "vendor-e2-optics-crestron", name: "E2 Optics/Crestron", role: "Audio/music/mic systems", company: "IT", phone: "+1 (303) 565-5394", email: "avsupport@e2optics.com", notes: "Access: Admin", tags: r#"["vendor","it","audio","crestron"]"# },
+        SeedContact { id: "vendor-everi", name: "Everi Support", role: "Cash Club, PKMS, Xchange support", company: "IT/Guest Services", phone: "+1 (844) 383-7424", email: "support@everi.zendesk.com", notes: "Access: Admin", tags: r#"["vendor","it","guest-services"]"# },
+        SeedContact { id: "vendor-fourwinds", name: "FourWinds (Poppulo/Digital Signage)", role: "FourWinds software support", company: "IT", phone: "+1 (303) 313-3000", email: "support@fourwindsinteractive.com", notes: "Access: Admin", tags: r#"["vendor","it","digital-signage"]"# },
+        SeedContact { id: "vendor-igt", name: "IGT Support", role: "IGT application services", company: "IT", phone: "+1 (866) 777-8448", email: "support@igt.com", notes: "Access: Admin\nAccount: Admin", tags: r#"["vendor","it","gaming"]"# },
+        SeedContact { id: "vendor-innfinity", name: "Innfinity", role: "Hotel application system", company: "IT", phone: "+1 (619) 798-3915", email: "support@innfinity.com", notes: "Access: Admin", tags: r#"["vendor","it","hotel"]"# },
+        SeedContact { id: "vendor-mpulse", name: "Mpulse 9", role: "Facilities ticketing system", company: "IT/Facilities", phone: "+1 (800) 944-1796", email: "", notes: "Access: Admin", tags: r#"["vendor","it","facilities"]"# },
+        SeedContact { id: "vendor-opentable", name: "Open Table", role: "Restaurant reservation system", company: "IT", phone: "+1 (800) 673-6822", email: "", notes: "Access: Admin", tags: r#"["vendor","it","restaurant"]"# },
+        SeedContact { id: "vendor-red-rocks", name: "Red Rocks Inventory", role: "Inventory software", company: "IT", phone: "+1 (702) 968-7851", email: "helpdesk@redrocksoftware.com", notes: "Access: Admin", tags: r#"["vendor","it","inventory"]"# },
+        SeedContact { id: "vendor-schoox", name: "Schoox", role: "Employee training platform", company: "IT/HR", phone: "", email: "", notes: "Access: Admin", tags: r#"["vendor","it","hr","training"]"# },
+        SeedContact { id: "vendor-smart-idesigner", name: "Smart Idesigner", role: "Card encoding/design", company: "IT", phone: "+1 (401) 400-7111", email: "support@idp-corp.com", notes: "Access: Admin", tags: r#"["vendor","it","cards"]"# },
+        SeedContact { id: "vendor-vantage", name: "Vantage Innovative Display Solutions", role: "Outside promo signs", company: "IT", phone: "+1 (888) 595-3956", email: "", notes: "Access: Admin", tags: r#"["vendor","it","signage"]"# },
+        SeedContact { id: "vendor-wasp", name: "WASP", role: "Inventory software", company: "IT", phone: "+1 (866) 547-9277", email: "", notes: "Access: Admin", tags: r#"["vendor","it","inventory","barcode"]"# },
+        SeedContact { id: "vendor-modern-craft", name: "Modern Craft Media", role: "Website administrators", company: "Vendor", phone: "", email: "support@moderncraftmedia.com", notes: "Access: Overview", tags: r#"["vendor","website"]"# },
+        SeedContact { id: "vendor-cashtrac", name: "Casino CashTrac", role: "Cage and vault transactions", company: "Vendor", phone: "+1 (405) 820-3967", email: "wfranca@casinocashtrac.com", notes: "Access: Admin", tags: r#"["vendor","casino","cage","vault"]"# },
+        SeedContact { id: "vendor-passport", name: "Passport Technology", role: "Table Games card reader", company: "Vendor", phone: "+1 (775) 338-7878", email: "martv@passporttechnology.com", notes: "Access: Admin", tags: r#"["vendor","table-games"]"# },
+        SeedContact { id: "vendor-barrynet", name: "BarryNet", role: "Cable TV, backup internet", company: "Vendor", phone: "+1 (303) 918-5251", email: "bkisselman@gpcom.com", notes: "Access: Overview", tags: r#"["vendor","network","internet"]"# },
+        SeedContact { id: "vendor-southern-cross", name: "Southern Cross", role: "Network cable runs", company: "Vendor", phone: "+1 (720) 463-4960", email: "tim@scnetcabling.com", notes: "Access: Admin", tags: r#"["vendor","network","cabling"]"# },
+        SeedContact { id: "vendor-morse-watchman", name: "Morse Watchman", role: "KeyWatcher hardware", company: "Vendor", phone: "+1 (800) 423-8256", email: "monse@morsewatchman.com", notes: "", tags: r#"["vendor","hardware","keys"]"# },
+        SeedContact { id: "vendor-infor", name: "INFOR", role: "Hotel check-in application", company: "Vendor", phone: "+1 (866) 244-5479", email: "inforsaas@service-now.com", notes: "Access: Admin", tags: r#"["vendor","hotel"]"# },
+    ];
+
+    for c in contacts {
+        conn.execute(
+            "INSERT OR IGNORE INTO contacts (id,folder_id,name,role,company,phone,email,notes,tags,is_favorite,position,created_at,updated_at)
+             VALUES (?1,NULL,?2,?3,?4,?5,?6,?7,?8,0,0,?9,?9)",
+            rusqlite::params![c.id, c.name, c.role, c.company, c.phone, c.email, c.notes, c.tags, TS],
+        )?;
+    }
     Ok(())
 }
 

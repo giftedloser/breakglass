@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import { Copy, Star, Trash2, X } from 'lucide-react';
+import { Copy, FolderInput, Star, Trash2, X } from 'lucide-react';
+import { MoveDialog } from './MoveDialog';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { topLabel } from '../lib/categories';
@@ -31,6 +32,7 @@ export function ContactView({ contactId }: { contactId: string }) {
   const [notes, setNotes] = useState(contact?.notes ?? '');
   const [tags, setTags] = useState<string[]>(contact?.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
+  const [moveOpen, setMoveOpen] = useState(false);
 
   useEffect(() => {
     if (!contact) return;
@@ -112,9 +114,14 @@ export function ContactView({ contactId }: { contactId: string }) {
           <button className="icon-btn" onClick={togglePin} title={contact.is_favorite ? 'Unpin' : 'Pin'}>
             <Star size={14} className={contact.is_favorite ? 'star-mark filled' : ''} />
           </button>
+          <button className="icon-btn" onClick={() => setMoveOpen(true)} title="Move to..."><FolderInput size={14} /></button>
           <button className="icon-btn danger" onClick={remove} title="Delete contact"><Trash2 size={14} /></button>
         </div>
       </header>
+      {moveOpen && (
+        <MoveDialog kind="contact" id={contact.id} currentTop="contacts"
+                    currentFolderId={contact.folder_id} onClose={() => setMoveOpen(false)} />
+      )}
 
       <div className="entry-title-row">
         <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />

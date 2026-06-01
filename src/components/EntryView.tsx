@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, Pencil, Save, Star, Trash2, X } from 'lucide-react';
+import { ExternalLink, FolderInput, Pencil, Save, Star, Trash2, X } from 'lucide-react';
+import { MoveDialog } from './MoveDialog';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
@@ -31,6 +32,7 @@ export function EntryView({ entryId }: { entryId: string }) {
   const [content, setContent] = useState(entry?.content ?? '');
   const [editingBody, setEditingBody] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
+  const [moveOpen, setMoveOpen] = useState(false);
   const isLinks = entry ? TOP_BY_ID[entry.top_category].isLinks : false;
   const dirtyRef = useRef(false);
 
@@ -132,9 +134,14 @@ export function EntryView({ entryId }: { entryId: string }) {
           <button className="icon-btn" onClick={togglePin} title={entry.is_favorite ? 'Unpin' : 'Pin'}>
             <Star size={14} className={entry.is_favorite ? 'star-mark filled' : ''} />
           </button>
+          <button className="icon-btn" onClick={() => setMoveOpen(true)} title="Move to..."><FolderInput size={14} /></button>
           <button className="icon-btn danger" onClick={remove} title="Delete entry"><Trash2 size={14} /></button>
         </div>
       </header>
+      {moveOpen && (
+        <MoveDialog kind="entry" id={entry.id} currentTop={entry.top_category}
+                    currentFolderId={entry.folder_id} onClose={() => setMoveOpen(false)} />
+      )}
 
       <div className="entry-title-row">
         <input className="entry-title-input" value={title} onChange={(e) => setTitle(e.target.value)}
