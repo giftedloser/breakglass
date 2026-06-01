@@ -213,15 +213,15 @@ input, textarea { font: inherit; color: inherit; }
 
 /* ───── content pane ───── */
 .content-pane {
-  overflow-y: auto; padding: 24px 36px 80px;
+  overflow-y: auto; padding: 16px 32px 60px;
   max-width: 920px; width: 100%; margin: 0 auto;
 }
 
 .content-header {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
   flex-wrap: wrap;
 }
-.content-title { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.content-title { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
 .content-sub { color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
 
 .crumbs { color: var(--text-muted); font-size: 12.5px; flex: 1; min-width: 0; }
@@ -255,10 +255,10 @@ input, textarea { font: inherit; color: inherit; }
 
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 14px 18px; margin-bottom: 14px;
+  padding: 12px 16px; margin-bottom: 10px;
 }
 .panel h3 {
-  margin: 0 0 10px; font-size: 11px; font-weight: 600;
+  margin: 0 0 8px; font-size: 10.5px; font-weight: 600;
   letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted);
 }
 .empty-panel { padding: 24px; text-align: center; }
@@ -276,10 +276,10 @@ input, textarea { font: inherit; color: inherit; }
 .row-when { color: var(--text-dim); font-size: 11.5px; }
 
 /* ───── entry/contact view ───── */
-.entry-title-row { margin-bottom: 8px; }
+.entry-title-row { margin-bottom: 4px; }
 .entry-title-input {
   width: 100%; background: transparent; border: 0; border-bottom: 1px solid transparent;
-  color: var(--text); font-size: 22px; font-weight: 600; padding: 4px 0;
+  color: var(--text); font-size: 20px; font-weight: 600; padding: 2px 0;
   outline: none; letter-spacing: -0.01em;
 }
 .entry-title-input:hover { border-bottom-color: var(--line-soft); }
@@ -402,8 +402,8 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 }
 
 .entry-meta {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
-  color: var(--text-muted); font-size: 12px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+  color: var(--text-muted); font-size: 11.5px; flex-wrap: wrap;
 }
 .meta-when { color: var(--text-dim); }
 
@@ -460,8 +460,9 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 .app-detail-header .entry-title-input { flex: 1; }
 
 .sitelink-card .sl-desc {
-  color: var(--text-muted); font-size: 12px; margin-top: 2px;
+  color: var(--text-muted); font-size: 11.5px; margin-top: 1px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  line-height: 1.35;
 }
 
 .copy-field { display: flex; gap: 4px; }
@@ -564,7 +565,8 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
   border-bottom: 1px solid var(--line); background: var(--panel);
   border-top-left-radius: 6px; border-top-right-radius: 6px;
 }
-.editor-body { padding: 14px 16px; min-height: 120px; }
+.editor-body { padding: 12px 14px; min-height: 80px; }
+.editor-shell.is-reading .editor-body { min-height: 0; }
 .editor-body .tiptap-content { outline: none; }
 .editor-body .tiptap-content > *:first-child { margin-top: 0; }
 .editor-footer {
@@ -575,26 +577,35 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 /* ───── modules (Contacts, Site Links) ───── */
 .module-pane { overflow: hidden; display: flex; flex-direction: column; height: 100%; }
 .module-header {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 24px 12px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 18px; border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.module-header h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-.module-header .module-count { color: var(--text-dim); font-size: 12px; margin-right: auto; }
+.module-header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.module-header .module-count { color: var(--text-dim); font-size: 11px; margin-right: auto; }
 .module-search {
-  flex: 1; min-width: 240px; max-width: 360px;
+  flex: 1; min-width: 200px; max-width: 320px;
   display: flex; align-items: center; gap: 6px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
-  padding: 4px 10px;
+  padding: 3px 8px;
 }
 .module-search input {
-  flex: 1; background: transparent; border: 0; outline: none; font-size: 13px;
+  flex: 1; background: transparent; border: 0; outline: none; font-size: 12.5px;
 }
-.module-folders { padding: 8px 24px; border-bottom: 1px solid var(--line-soft); display: flex; flex-wrap: wrap; gap: 4px; }
+.module-header .ghost-btn,
+.module-header .primary-btn { padding: 3px 9px; font-size: 11.5px; }
+
+.module-folders {
+  padding: 6px 18px; border-bottom: 1px solid var(--line-soft);
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+.module-folders + .module-folders { padding-top: 0; border-bottom: 1px solid var(--line-soft); }
 .module-folder-chip {
-  background: var(--bg); border: 1px solid var(--line); color: var(--text-muted);
-  font-size: 11px; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  background: transparent; border: 1px solid var(--line); color: var(--text-muted);
+  font-size: 10.5px; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  line-height: 1.5;
 }
+.module-folder-chip:hover { color: var(--text); background: var(--panel-2); }
 .module-folder-chip.is-selected { background: var(--accent); color: white; border-color: var(--accent); }
 
 .module-body { flex: 1; overflow: hidden; display: grid; grid-template-columns: 320px 1fr; min-height: 0; }
@@ -609,22 +620,23 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 .module-list-row .row-main { flex: 1; min-width: 0; overflow: hidden; }
 .module-list-row .row-main .row-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .module-list-row .row-main .row-sub { color: var(--text-dim); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.module-detail { overflow-y: auto; padding: 20px 28px 60px; }
+.module-detail { overflow-y: auto; padding: 14px 22px 60px; }
 .module-detail .content-pane { padding: 0; max-width: none; }
 
 .module-empty { padding: 48px 24px; text-align: center; color: var(--text-dim); }
 
 /* sitelinks card grid */
 .sitelinks-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px; padding: 12px 24px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px; padding: 10px 18px;
   overflow-y: auto; flex: 1;
+  align-content: start;
 }
 .sitelink-card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
-  padding: 8px 10px; cursor: pointer; position: relative;
-  display: flex; flex-direction: column; gap: 2px;
-  font-size: 12.5px;
+  padding: 6px 9px; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; gap: 1px;
+  font-size: 12px; min-height: 0;
 }
 .sitelink-card:hover { border-color: var(--accent); background: var(--panel-2); }
 .sitelink-card .sl-title { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

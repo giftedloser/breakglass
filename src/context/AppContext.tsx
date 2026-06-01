@@ -73,6 +73,7 @@ function reducer(s: AppState, a: Action): AppState {
       const theme = s.theme === 'dark' ? 'light' : 'dark';
       localStorage.setItem('bg-theme', theme);
       document.documentElement.classList.toggle('dark', theme === 'dark');
+      document.documentElement.classList.toggle('light', theme === 'light');
       return { ...s, theme };
     }
     case 'SET_LOADING':
@@ -162,6 +163,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', state.theme === 'dark');
+    document.documentElement.classList.toggle('light', state.theme === 'light');
     void refresh();
   }, [refresh]);
 
