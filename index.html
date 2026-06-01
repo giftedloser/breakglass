@@ -3,10 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/src/breakglass.png" />
     <title>BreakGlass</title>
     <script>
       (function () {
-        const theme = localStorage.getItem("breakglass-theme") || "dark";
+        const theme = localStorage.getItem("bg-theme") || "dark";
         document.documentElement.classList.toggle("dark", theme !== "light");
       })();
     </script>

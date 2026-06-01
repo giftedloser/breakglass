@@ -194,6 +194,80 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
         tx.commit()?;
     }
 
+    if version < 13 {
+        // Drop CHECK constraints on entries and folders so we can add new top
+        // categories (starting with 'weekly') without rebuilding every release.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
+        let tx = conn.transaction()?;
+        tx.execute_batch(
+            "
+            DROP TRIGGER IF EXISTS entries_fts_insert;
+            DROP TRIGGER IF EXISTS entries_fts_update;
+            DROP TRIGGER IF EXISTS entries_fts_delete;
+
+            CREATE TABLE entries_new (
+              id TEXT PRIMARY KEY,
+              title TEXT NOT NULL,
+              top_category TEXT NOT NULL,
+              folder_id TEXT,
+              is_favorite INTEGER NOT NULL DEFAULT 0,
+              content TEXT NOT NULL DEFAULT '{}',
+              url TEXT,
+              tags TEXT NOT NULL DEFAULT '[]',
+              position INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              kind TEXT,
+              properties TEXT NOT NULL DEFAULT '{}',
+              app_id TEXT,
+              FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+            );
+            INSERT INTO entries_new (id,title,top_category,folder_id,is_favorite,content,url,tags,position,created_at,updated_at,kind,properties,app_id)
+              SELECT id,title,top_category,folder_id,is_favorite,content,url,tags,position,created_at,updated_at,kind,properties,app_id FROM entries;
+            DROP TABLE entries;
+            ALTER TABLE entries_new RENAME TO entries;
+
+            CREATE TABLE folders_new (
+              id TEXT PRIMARY KEY,
+              parent_id TEXT,
+              top_category TEXT NOT NULL,
+              name TEXT NOT NULL,
+              position INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
+            );
+            INSERT INTO folders_new SELECT * FROM folders;
+            DROP TABLE folders;
+            ALTER TABLE folders_new RENAME TO folders;
+
+            CREATE INDEX idx_entries_top ON entries(top_category);
+            CREATE INDEX idx_entries_folder ON entries(folder_id);
+            CREATE INDEX idx_entries_fav ON entries(is_favorite);
+            CREATE INDEX idx_entries_updated ON entries(updated_at DESC);
+            CREATE INDEX idx_entries_app ON entries(app_id);
+            CREATE INDEX idx_folders_parent ON folders(parent_id, top_category);
+
+            DELETE FROM entries_fts;
+            INSERT INTO entries_fts(id, title, content_text, tags_flat)
+              SELECT id, title, content, tags FROM entries;
+            CREATE TRIGGER entries_fts_insert AFTER INSERT ON entries BEGIN
+              INSERT INTO entries_fts(id, title, content_text, tags_flat)
+              VALUES (new.id, new.title, new.content, new.tags);
+            END;
+            CREATE TRIGGER entries_fts_update AFTER UPDATE ON entries BEGIN
+              UPDATE entries_fts SET title=new.title, content_text=new.content, tags_flat=new.tags WHERE id=new.id;
+            END;
+            CREATE TRIGGER entries_fts_delete AFTER DELETE ON entries BEGIN
+              DELETE FROM entries_fts WHERE id=old.id;
+            END;
+            ",
+        )?;
+        tx.pragma_update(None, "user_version", 13)?;
+        tx.commit()?;
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+    }
+
     // Seed vendor contacts if the contacts table is empty (fresh install).
     let contact_count: i64 = conn.query_row("SELECT COUNT(*) FROM contacts", [], |r| r.get(0))?;
     if contact_count == 0 {

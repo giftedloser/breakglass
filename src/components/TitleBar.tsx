@@ -21,7 +21,7 @@ export function TitleBar() {
   return (
     <div className="title-bar" data-tauri-drag-region>
       <div className="title-bar-brand" data-tauri-drag-region>
-        <div className="brand-mark" />
+        <img className="title-bar-icon" src="/src/breakglass.png" alt="" draggable={false} />
         <span className="title-bar-name">BreakGlass</span>
       </div>
       <button className="title-bar-search" onClick={() => dispatch({ type: 'TOGGLE_SEARCH', value: true })}>

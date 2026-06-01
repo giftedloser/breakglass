@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ChevronRight, FolderPlus, Home as HomeIcon, Moon, Pencil, Plus, Search, Settings as SettingsIcon, Star, Sun, Trash2 } from 'lucide-react';
+import { ChevronRight, FolderPlus, Home as HomeIcon, Moon, Pencil, Plus, Settings as SettingsIcon, Star, Sun, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
-import { TOPS, TopMeta } from '../lib/categories';
+import { GROUP_LABELS, TOPS, TopMeta } from '../lib/categories';
 import { defaultKind } from '../lib/kinds';
 import { Contact, Entry, Folder, TopCategory } from '../types';
 
@@ -12,11 +12,9 @@ type Node =
   | { kind: 'entry'; entry: Entry }
   | { kind: 'contact'; contact: Contact };
 
-// Module tops show only their sub-folders in the sidebar (no individual
-// records as leaves). Clicking the top opens a dedicated module.
-const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks', 'apps', 'network', 'servers', 'dbs']);
+const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks', 'apps', 'network', 'servers', 'dbs', 'weekly']);
 
-function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
+function buildTrees(folders: Folder[], entries: Entry[], _contacts: Contact[]) {
   const out = {} as Record<TopCategory, Record<string, Node[]>>;
   for (const t of TOPS) out[t.id] = {};
   const push = (top: TopCategory, key: string, node: Node) => {
@@ -26,10 +24,9 @@ function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
   };
   for (const folder of folders) push(folder.top_category, folder.parent_id ?? '__root__', { kind: 'folder', folder });
   for (const entry of entries) {
-    if (MODULE_TOPS.has(entry.top_category)) continue; // don't enumerate inside module tops
+    if (MODULE_TOPS.has(entry.top_category)) continue;
     push(entry.top_category, entry.folder_id ?? '__root__', { kind: 'entry', entry });
   }
-  // contacts are never enumerated as leaves in the sidebar — they live in the Contacts module.
   const cmp = (a: Node, b: Node) => {
     const ord = (n: Node) => (n.kind === 'folder' ? 0 : 1);
     if (ord(a) !== ord(b)) return ord(a) - ord(b);
@@ -43,12 +40,18 @@ function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
   return out;
 }
 
+type CtxMenu = {
+  x: number;
+  y: number;
+  items: { label: string; onClick: () => void; danger?: boolean }[];
+};
+
 export function Sidebar() {
   const { folders, entries, contacts, selection, expanded, dispatch, selectEntry, selectContact, selectFolder, selectTop, goHome, theme } = useApp();
+  const [ctx, setCtx] = useState<CtxMenu | null>(null);
 
   const trees = useMemo(() => buildTrees(folders, entries, contacts), [folders, entries, contacts]);
-
-  const isExpanded = (id: string) => expanded[id] !== false; // default open
+  const isExpanded = (id: string) => expanded[id] !== false;
   const toggleExpand = (id: string) => dispatch({ type: 'TOGGLE_EXPANDED', id });
 
   const isSel = (kind: 'entry' | 'contact' | 'folder' | 'top', id: string) => {
@@ -56,6 +59,12 @@ export function Sidebar() {
     if (kind === 'contact') return selection.kind === 'contact' && selection.contact_id === id;
     if (kind === 'folder') return selection.kind === 'folder' && selection.folder_id === id;
     return selection.kind === 'top' && selection.top === id;
+  };
+
+  const closeMenu = () => setCtx(null);
+  const openMenu = (e: React.MouseEvent, items: CtxMenu['items']) => {
+    e.preventDefault(); e.stopPropagation();
+    setCtx({ x: e.clientX, y: e.clientY, items });
   };
 
   const addFolderAt = async (top: TopCategory, parentId: string | null) => {
@@ -83,19 +92,6 @@ export function Sidebar() {
     } catch (err) { toast.error(String(err)); }
   };
 
-  const addContactAt = async (folderId: string | null) => {
-    const name = window.prompt('New contact name');
-    if (!name?.trim()) return;
-    try {
-      const contact = await db.saveContact({
-        name: name.trim(), folder_id: folderId, role: '', company: '',
-        phone: '', email: '', notes: '', tags: [], is_favorite: false,
-      });
-      dispatch({ type: 'UPSERT_CONTACT', contact });
-      void selectContact(contact.id);
-    } catch (err) { toast.error(String(err)); }
-  };
-
   const renameFolder = async (f: Folder) => {
     const next = window.prompt('Rename folder', f.name);
     if (!next?.trim() || next.trim() === f.name) return;
@@ -105,10 +101,36 @@ export function Sidebar() {
     } catch (err) { toast.error(String(err)); }
   };
 
-  const togglePinEntry = async (e: React.MouseEvent, entryId: string) => {
-    e.stopPropagation();
-    const entry = entries.find((x) => x.id === entryId);
-    if (!entry) return;
+  const deleteFolder = async (f: Folder) => {
+    if (!window.confirm(`Delete folder "${f.name}"? Sub-folders go with it. Entries inside survive but lose their folder.`)) return;
+    try {
+      await db.deleteFolder(f.id);
+      dispatch({ type: 'REMOVE_FOLDER', id: f.id });
+    } catch (err) { toast.error(String(err)); }
+  };
+
+  const renameEntry = async (id: string) => {
+    const e = entries.find((x) => x.id === id); if (!e) return;
+    const next = window.prompt('Rename entry', e.title); if (!next?.trim() || next.trim() === e.title) return;
+    try {
+      const saved = await db.saveEntry({
+        id: e.id, title: next.trim(), top_category: e.top_category, folder_id: e.folder_id,
+        app_id: e.app_id, kind: e.kind, properties: e.properties,
+        is_favorite: e.is_favorite, content: e.content, url: e.url, tags: e.tags,
+      });
+      dispatch({ type: 'UPSERT_ENTRY', entry: saved });
+    } catch (err) { toast.error(String(err)); }
+  };
+
+  const deleteEntry = async (id: string) => {
+    const e = entries.find((x) => x.id === id); if (!e) return;
+    if (!window.confirm(`Delete entry "${e.title}"?`)) return;
+    try { await db.deleteEntry(id); dispatch({ type: 'REMOVE_ENTRY', id }); }
+    catch (err) { toast.error(String(err)); }
+  };
+
+  const togglePinEntry = async (entryId: string) => {
+    const entry = entries.find((x) => x.id === entryId); if (!entry) return;
     try {
       const saved = await db.saveEntry({
         id: entry.id, title: entry.title, top_category: entry.top_category, folder_id: entry.folder_id,
@@ -116,27 +138,6 @@ export function Sidebar() {
         is_favorite: !entry.is_favorite, content: entry.content, url: entry.url, tags: entry.tags,
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: saved });
-    } catch (err) { toast.error(String(err)); }
-  };
-
-  const togglePinContact = async (e: React.MouseEvent, contactId: string) => {
-    e.stopPropagation();
-    const c = contacts.find((x) => x.id === contactId);
-    if (!c) return;
-    try {
-      const saved = await db.saveContact({
-        id: c.id, folder_id: c.folder_id, name: c.name, role: c.role, company: c.company,
-        phone: c.phone, email: c.email, notes: c.notes, tags: c.tags, is_favorite: !c.is_favorite,
-      });
-      dispatch({ type: 'UPSERT_CONTACT', contact: saved });
-    } catch (err) { toast.error(String(err)); }
-  };
-
-  const deleteFolder = async (f: Folder) => {
-    if (!window.confirm(`Delete folder "${f.name}"? Sub-folders go with it. Entries inside survive but lose their folder.`)) return;
-    try {
-      await db.deleteFolder(f.id);
-      dispatch({ type: 'REMOVE_FOLDER', id: f.id });
     } catch (err) { toast.error(String(err)); }
   };
 
@@ -152,7 +153,13 @@ export function Sidebar() {
             const hasKids = (trees[top.id][fid] || []).length > 0;
             return (
               <li key={`f-${fid}`}>
-                <div className={`tree-row ${isSel('folder', fid) ? 'is-selected' : ''}`}>
+                <div className={`tree-row ${isSel('folder', fid) ? 'is-selected' : ''}`}
+                     onContextMenu={(e) => openMenu(e, [
+                       { label: 'New entry here', onClick: () => addEntryAt(top.id, fid) },
+                       { label: 'New folder here', onClick: () => addFolderAt(top.id, fid) },
+                       { label: 'Rename folder', onClick: () => renameFolder(n.folder) },
+                       { label: 'Delete folder', onClick: () => deleteFolder(n.folder), danger: true },
+                     ])}>
                   <button className="tree-twisty" onClick={() => toggleExpand(fid)} aria-label="toggle">
                     <ChevronRight className={`twisty-icon ${open ? 'open' : ''} ${hasKids ? '' : 'invisible'}`} size={12} />
                   </button>
@@ -161,8 +168,8 @@ export function Sidebar() {
                     <span className="truncate">{n.folder.name}</span>
                   </button>
                   <div className="tree-actions">
-                    <button title="New entry here" onClick={(e) => { e.stopPropagation(); addEntryAt(top.id, fid); }}><Plus size={11} /></button>
-                    <button title="New folder here" onClick={(e) => { e.stopPropagation(); addFolderAt(top.id, fid); }}><FolderPlus size={11} /></button>
+                    <button title="New entry" onClick={(e) => { e.stopPropagation(); addEntryAt(top.id, fid); }}><Plus size={11} /></button>
+                    <button title="New folder" onClick={(e) => { e.stopPropagation(); addFolderAt(top.id, fid); }}><FolderPlus size={11} /></button>
                     <button title="Rename" onClick={(e) => { e.stopPropagation(); renameFolder(n.folder); }}><Pencil size={11} /></button>
                     <button title="Delete" onClick={(e) => { e.stopPropagation(); deleteFolder(n.folder); }}><Trash2 size={11} /></button>
                   </div>
@@ -176,50 +183,66 @@ export function Sidebar() {
             const pinned = n.entry.is_favorite;
             return (
               <li key={`e-${id}`}>
-                <div className={`tree-row leaf ${isSel('entry', id) ? 'is-selected' : ''}`}>
+                <div className={`tree-row leaf ${isSel('entry', id) ? 'is-selected' : ''}`}
+                     onContextMenu={(e) => openMenu(e, [
+                       { label: pinned ? 'Unpin' : 'Pin', onClick: () => togglePinEntry(id) },
+                       { label: 'Rename', onClick: () => renameEntry(id) },
+                       { label: 'Delete', onClick: () => deleteEntry(id), danger: true },
+                     ])}>
                   <span className="tree-twisty" />
                   <button className="tree-name" onClick={() => selectEntry(id)} title={n.entry.title}>
                     <span className="leaf-icon">·</span>
                     <span className="truncate">{n.entry.title || '(untitled)'}</span>
                   </button>
-                  <button className={`leaf-pin ${pinned ? 'is-pinned' : ''}`} onClick={(e) => togglePinEntry(e, id)} title={pinned ? 'Unpin' : 'Pin'}>
+                  <button className={`leaf-pin ${pinned ? 'is-pinned' : ''}`} onClick={(e) => { e.stopPropagation(); togglePinEntry(id); }} title={pinned ? 'Unpin' : 'Pin'}>
                     <Star size={11} />
                   </button>
                 </div>
               </li>
             );
           }
-          const id = n.contact.id;
-          const pinned = n.contact.is_favorite;
-          return (
-            <li key={`c-${id}`}>
-              <div className={`tree-row leaf ${isSel('contact', id) ? 'is-selected' : ''}`}>
-                <span className="tree-twisty" />
-                <button className="tree-name" onClick={() => selectContact(id)} title={n.contact.name}>
-                  <span className="leaf-icon">☎</span>
-                  <span className="truncate">{n.contact.name}</span>
-                </button>
-                <button className={`leaf-pin ${pinned ? 'is-pinned' : ''}`} onClick={(e) => togglePinContact(e, id)} title={pinned ? 'Unpin' : 'Pin'}>
-                  <Star size={11} />
-                </button>
-              </div>
-            </li>
-          );
+          return null; // contacts no longer enumerated
         })}
       </ul>
     );
   };
 
+  const renderTop = (top: TopMeta) => {
+    const topId = `top-${top.id}`;
+    const open = isExpanded(topId);
+    const isModule = MODULE_TOPS.has(top.id);
+    return (
+      <div key={top.id} className="tree-top">
+        <div className={`tree-row top ${isSel('top', top.id) ? 'is-selected' : ''}`}
+             onContextMenu={(e) => openMenu(e, [
+               { label: 'Open', onClick: () => selectTop(top.id) },
+               { label: 'New folder', onClick: () => addFolderAt(top.id, null) },
+             ])}>
+          {!isModule && (
+            <button className="tree-twisty" onClick={() => toggleExpand(topId)}>
+              <ChevronRight className={`twisty-icon ${open ? 'open' : ''}`} size={12} />
+            </button>
+          )}
+          {isModule && <span className="tree-twisty" />}
+          <button className="tree-name top-name" onClick={() => selectTop(top.id)} onDoubleClick={() => toggleExpand(topId)}>
+            <span className="truncate">{top.label}</span>
+          </button>
+          <div className="tree-actions">
+            {!isModule && (
+              <button title="New entry" onClick={(e) => { e.stopPropagation(); addEntryAt(top.id, null); }}><Plus size={11} /></button>
+            )}
+            <button title="New folder" onClick={(e) => { e.stopPropagation(); addFolderAt(top.id, null); }}><FolderPlus size={11} /></button>
+          </div>
+        </div>
+        {!isModule && open && renderNodes(top, '__root__')}
+      </div>
+    );
+  };
+
+  const groups: ('infra' | 'ops' | 'workspace')[] = ['infra', 'ops', 'workspace'];
+
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-mark" />
-        <b>BREAKGLASS</b>
-        <button className="brand-search" title="Search (Ctrl+K)" onClick={() => dispatch({ type: 'TOGGLE_SEARCH', value: true })}>
-          <Search size={13} />
-        </button>
-      </div>
-
       <div className="filters">
         <button className={`filter-row ${selection.kind === 'home' ? 'is-selected' : ''}`} onClick={goHome}>
           <HomeIcon size={13} /> <span>Home</span>
@@ -231,39 +254,35 @@ export function Sidebar() {
       </div>
 
       <div className="tree">
-        {TOPS.map((top) => {
-          const topId = `top-${top.id}`;
-          const open = isExpanded(topId);
-          return (
-            <div key={top.id} className="tree-top">
-              <div className={`tree-row top ${isSel('top', top.id) ? 'is-selected' : ''}`}>
-                <button className="tree-twisty" onClick={() => toggleExpand(topId)}>
-                  <ChevronRight className={`twisty-icon ${open ? 'open' : ''}`} size={12} />
-                </button>
-                <button className="tree-name top-name" onClick={() => selectTop(top.id)} onDoubleClick={() => toggleExpand(topId)}>
-                  <span className="truncate">{top.label}</span>
-                </button>
-                <div className="tree-actions">
-                  {top.isContacts
-                    ? <button title="New contact" onClick={(e) => { e.stopPropagation(); addContactAt(null); }}><Plus size={11} /></button>
-                    : <button title="New entry" onClick={(e) => { e.stopPropagation(); addEntryAt(top.id, null); }}><Plus size={11} /></button>}
-                  <button title="New folder" onClick={(e) => { e.stopPropagation(); addFolderAt(top.id, null); }}><FolderPlus size={11} /></button>
-                </div>
-              </div>
-              {open && renderNodes(top, '__root__')}
-            </div>
-          );
-        })}
+        {groups.map((g) => (
+          <div key={g} className="tree-group">
+            <div className="tree-group-label">{GROUP_LABELS[g]}</div>
+            {TOPS.filter((t) => t.group === g).map(renderTop)}
+          </div>
+        ))}
       </div>
 
       <div className="sidebar-footer">
-        <button className="footer-btn" onClick={() => dispatch({ type: 'TOGGLE_THEME' })} title="Toggle theme">
+        <button className="footer-btn" onClick={() => dispatch({ type: 'TOGGLE_THEME' })} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
         </button>
         <button className="footer-btn" onClick={() => dispatch({ type: 'TOGGLE_EXPORT', value: true })} title="Backup / restore">
           <SettingsIcon size={13} />
         </button>
       </div>
+
+      {ctx && (
+        <>
+          <div className="ctx-backdrop" onClick={closeMenu} onContextMenu={(e) => { e.preventDefault(); closeMenu(); }} />
+          <div className="ctx-menu" style={{ top: ctx.y, left: ctx.x }}>
+            {ctx.items.map((item, i) => (
+              <button key={i} className={`ctx-item ${item.danger ? 'danger' : ''}`} onClick={() => { item.onClick(); closeMenu(); }}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </aside>
   );
 }

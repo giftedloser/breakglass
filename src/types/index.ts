@@ -7,7 +7,8 @@ export type TopCategory =
   | 'contacts'
   | 'notes'
   | 'howto'
-  | 'sitelinks';
+  | 'sitelinks'
+  | 'weekly';
 
 export interface Folder {
   id: string;

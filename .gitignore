@@ -1,4 +1,30 @@
+# dependencies
 node_modules/
+
+# build output
 dist/
 src-tauri/target/
+*.tsbuildinfo
+
+# logs
 *.log
+tauri-dev.*.log
+vite-preview.*.log
+
+# editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# secrets and local config
+.env
+.env.local
+.env.*.local
+*.local
+
+# tauri signing keys
+src-tauri/keys/
+*.key
+*.pem

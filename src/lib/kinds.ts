@@ -19,28 +19,19 @@ export const KINDS: Record<TopCategory, KindDef[]> = {
   ],
   servers: [
     { id: 'server', label: 'Server', fields: [
-      { key: 'hostname', label: 'Hostname' },
+      { key: 'name', label: 'Name' },
       { key: 'ip', label: 'IP address' },
-      { key: 'os', label: 'OS' },
-      { key: 'role', label: 'Role' },
-      { key: 'location', label: 'Location' },
-      { key: 'creds_pointer', label: 'Credentials in', placeholder: 'Bitwarden entry, KeePass file, etc.' },
-    ]},
-    { id: 'service', label: 'Service', fields: [
-      { key: 'host', label: 'Host' },
-      { key: 'port', label: 'Port' },
-      { key: 'protocol', label: 'Protocol', placeholder: 'tcp, udp, http, ...' },
-      { key: 'owner', label: 'Owner' },
+      { key: 'role', label: 'Role / Use' },
     ]},
     { id: 'generic', label: 'Other', fields: [] },
   ],
   dbs: [
     { id: 'database', label: 'Database', fields: [
-      { key: 'engine', label: 'Engine', placeholder: 'PostgreSQL, MSSQL, MySQL, ...' },
+      { key: 'name', label: 'Name' },
       { key: 'host', label: 'Host' },
-      { key: 'port', label: 'Port' },
-      { key: 'database', label: 'Database name' },
-      { key: 'creds_pointer', label: 'Credentials in' },
+    ]},
+    { id: 'snippet', label: 'SQL snippet', fields: [
+      { key: 'engine', label: 'Engine', placeholder: 'PostgreSQL, MSSQL, MySQL, ...' },
     ]},
     { id: 'generic', label: 'Other', fields: [] },
   ],
@@ -76,6 +67,9 @@ export const KINDS: Record<TopCategory, KindDef[]> = {
   howto: [{ id: 'generic', label: 'How-To', fields: [] }],
   sitelinks: [{ id: 'generic', label: 'Site Link', fields: [
     { key: 'description', label: 'Description', wide: true },
+  ]}],
+  weekly: [{ id: 'report', label: 'Weekly Report', fields: [
+    { key: 'week_of', label: 'Week of (YYYY-MM-DD)' },
   ]}],
 };
 
