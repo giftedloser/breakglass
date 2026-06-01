@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { SearchModal } from './components/SearchModal';
 import { ExportDialog } from './components/ExportDialog';
 import { ContentRouter } from './components/ContentRouter';
+import { TitleBar } from './components/TitleBar';
 import { useApp } from './context/AppContext';
 
 export default function App() {
@@ -22,14 +23,17 @@ export default function App() {
   }, [dispatch]);
 
   return (
-    <div className="app-shell">
+    <div className="app-root">
       <Toaster position="bottom-right" toastOptions={{ style: { background: '#272320', color: '#ece8e2', border: '1px solid #34302c' } }} />
       {searchOpen && <SearchModal />}
       {exportOpen && <ExportDialog />}
-      <Sidebar />
-      <main className="main-pane">
-        <ContentRouter />
-      </main>
+      <TitleBar />
+      <div className="app-shell">
+        <Sidebar />
+        <main className="main-pane">
+          <ContentRouter />
+        </main>
+      </div>
     </div>
   );
 }

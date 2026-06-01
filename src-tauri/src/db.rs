@@ -163,6 +163,37 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
         tx.commit()?;
     }
 
+    if version < 12 {
+        let tx = conn.transaction()?;
+        tx.execute_batch(
+            "
+            CREATE TABLE IF NOT EXISTS apps (
+              id           TEXT PRIMARY KEY,
+              folder_id    TEXT,
+              name         TEXT NOT NULL,
+              vendor       TEXT NOT NULL DEFAULT '',
+              url          TEXT NOT NULL DEFAULT '',
+              login_notes  TEXT NOT NULL DEFAULT '',
+              criticality  TEXT NOT NULL DEFAULT '',
+              tags         TEXT NOT NULL DEFAULT '[]',
+              is_favorite  INTEGER NOT NULL DEFAULT 0,
+              position     INTEGER NOT NULL DEFAULT 0,
+              created_at   TEXT NOT NULL,
+              updated_at   TEXT NOT NULL,
+              FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
+            );
+            ALTER TABLE entries ADD COLUMN kind TEXT;
+            ALTER TABLE entries ADD COLUMN properties TEXT NOT NULL DEFAULT '{}';
+            ALTER TABLE entries ADD COLUMN app_id TEXT;
+            CREATE INDEX IF NOT EXISTS idx_entries_app ON entries(app_id);
+            CREATE INDEX IF NOT EXISTS idx_apps_folder ON apps(folder_id);
+            CREATE INDEX IF NOT EXISTS idx_apps_name ON apps(name);
+            ",
+        )?;
+        tx.pragma_update(None, "user_version", 12)?;
+        tx.commit()?;
+    }
+
     // Seed vendor contacts if the contacts table is empty (fresh install).
     let contact_count: i64 = conn.query_row("SELECT COUNT(*) FROM contacts", [], |r| r.get(0))?;
     if contact_count == 0 {

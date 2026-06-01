@@ -1,15 +1,16 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import toast from 'react-hot-toast';
-import { Contact, Entry, Folder, RecentItem, SelectionTarget, TopCategory } from '../types';
+import { App, Contact, Entry, Folder, RecentItem, SelectionTarget, TopCategory } from '../types';
 import { db } from '../lib/invoke';
 
 interface AppState {
   folders: Folder[];
   entries: Entry[];
   contacts: Contact[];
+  apps: App[];
   recents: RecentItem[];
   selection: SelectionTarget;
-  expanded: Record<string, boolean>; // folder/top ids that are open in the sidebar
+  expanded: Record<string, boolean>;
   searchOpen: boolean;
   exportOpen: boolean;
   theme: 'dark' | 'light';
@@ -17,7 +18,7 @@ interface AppState {
 }
 
 type Action =
-  | { type: 'SET_DATA'; folders: Folder[]; entries: Entry[]; contacts: Contact[]; recents: RecentItem[] }
+  | { type: 'SET_DATA'; folders: Folder[]; entries: Entry[]; contacts: Contact[]; apps: App[]; recents: RecentItem[] }
   | { type: 'SET_RECENTS'; recents: RecentItem[] }
   | { type: 'SELECT'; target: SelectionTarget }
   | { type: 'TOGGLE_EXPANDED'; id: string; value?: boolean }
@@ -31,13 +32,12 @@ type Action =
   | { type: 'UPSERT_ENTRY'; entry: Entry }
   | { type: 'REMOVE_ENTRY'; id: string }
   | { type: 'UPSERT_CONTACT'; contact: Contact }
-  | { type: 'REMOVE_CONTACT'; id: string };
+  | { type: 'REMOVE_CONTACT'; id: string }
+  | { type: 'UPSERT_APP'; app: App }
+  | { type: 'REMOVE_APP'; id: string };
 
 const initial: AppState = {
-  folders: [],
-  entries: [],
-  contacts: [],
-  recents: [],
+  folders: [], entries: [], contacts: [], apps: [], recents: [],
   selection: { kind: 'home' },
   expanded: JSON.parse(localStorage.getItem('bg-expanded') || '{}'),
   searchOpen: false,
@@ -49,7 +49,7 @@ const initial: AppState = {
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'SET_DATA':
-      return { ...s, folders: a.folders, entries: a.entries, contacts: a.contacts, recents: a.recents };
+      return { ...s, folders: a.folders, entries: a.entries, contacts: a.contacts, apps: a.apps, recents: a.recents };
     case 'SET_RECENTS':
       return { ...s, recents: a.recents };
     case 'SELECT':
@@ -88,8 +88,7 @@ function reducer(s: AppState, a: Action): AppState {
         changed = false;
         for (const f of s.folders) {
           if (f.parent_id && removeIds.has(f.parent_id) && !removeIds.has(f.id)) {
-            removeIds.add(f.id);
-            changed = true;
+            removeIds.add(f.id); changed = true;
           }
         }
       }
@@ -98,6 +97,7 @@ function reducer(s: AppState, a: Action): AppState {
         folders: s.folders.filter((f) => !removeIds.has(f.id)),
         entries: s.entries.map((e) => removeIds.has(e.folder_id || '') ? { ...e, folder_id: null } : e),
         contacts: s.contacts.map((c) => removeIds.has(c.folder_id || '') ? { ...c, folder_id: null } : c),
+        apps: s.apps.map((p) => removeIds.has(p.folder_id || '') ? { ...p, folder_id: null } : p),
       };
     }
     case 'UPSERT_ENTRY': {
@@ -112,21 +112,30 @@ function reducer(s: AppState, a: Action): AppState {
     }
     case 'REMOVE_CONTACT':
       return { ...s, contacts: s.contacts.filter((c) => c.id !== a.id), selection: matchesContact(s.selection, a.id) ? { kind: 'home' } : s.selection };
+    case 'UPSERT_APP': {
+      const exists = s.apps.some((p) => p.id === a.app.id);
+      return { ...s, apps: exists ? s.apps.map((p) => p.id === a.app.id ? a.app : p) : [a.app, ...s.apps] };
+    }
+    case 'REMOVE_APP':
+      return {
+        ...s,
+        apps: s.apps.filter((p) => p.id !== a.id),
+        entries: s.entries.map((e) => e.app_id === a.id ? { ...e, app_id: null } : e),
+        selection: matchesApp(s.selection, a.id) ? { kind: 'home' } : s.selection,
+      };
   }
 }
 
-function matchesEntry(sel: SelectionTarget, id: string) {
-  return sel.kind === 'entry' && sel.entry_id === id;
-}
-function matchesContact(sel: SelectionTarget, id: string) {
-  return sel.kind === 'contact' && sel.contact_id === id;
-}
+function matchesEntry(sel: SelectionTarget, id: string) { return sel.kind === 'entry' && sel.entry_id === id; }
+function matchesContact(sel: SelectionTarget, id: string) { return sel.kind === 'contact' && sel.contact_id === id; }
+function matchesApp(sel: SelectionTarget, id: string) { return sel.kind === 'app' && sel.app_id === id; }
 
 interface Ctx extends AppState {
   dispatch: React.Dispatch<Action>;
   refresh: () => Promise<void>;
   selectEntry: (id: string) => Promise<void>;
   selectContact: (id: string) => Promise<void>;
+  selectApp: (id: string) => Promise<void>;
   selectFolder: (id: string) => void;
   selectTop: (top: TopCategory) => void;
   goHome: () => void;
@@ -140,10 +149,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       dispatch({ type: 'SET_LOADING', value: true });
-      const [folders, entries, contacts, recents] = await Promise.all([
-        db.listFolders(), db.listEntries(), db.listContacts(), db.listRecents(),
+      const [folders, entries, contacts, apps, recents] = await Promise.all([
+        db.listFolders(), db.listEntries(), db.listContacts(), db.listApps(), db.listRecents(),
       ]);
-      dispatch({ type: 'SET_DATA', folders, entries, contacts, recents });
+      dispatch({ type: 'SET_DATA', folders, entries, contacts, apps, recents });
     } catch (err) {
       toast.error(String(err));
     } finally {
@@ -156,23 +165,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const selectEntry = useCallback(async (id: string) => {
-    dispatch({ type: 'SELECT', target: { kind: 'entry', entry_id: id } });
+  const touchAndRelist = useCallback(async (kind: 'entry' | 'contact' | 'app', id: string) => {
     try {
-      await db.touchRecent('entry', id);
+      await db.touchRecent(kind, id);
       const recents = await db.listRecents();
       dispatch({ type: 'SET_RECENTS', recents });
     } catch {/* ignore */}
   }, []);
 
+  const selectEntry = useCallback(async (id: string) => {
+    dispatch({ type: 'SELECT', target: { kind: 'entry', entry_id: id } });
+    void touchAndRelist('entry', id);
+  }, [touchAndRelist]);
+
   const selectContact = useCallback(async (id: string) => {
     dispatch({ type: 'SELECT', target: { kind: 'contact', contact_id: id } });
-    try {
-      await db.touchRecent('contact', id);
-      const recents = await db.listRecents();
-      dispatch({ type: 'SET_RECENTS', recents });
-    } catch {/* ignore */}
-  }, []);
+    void touchAndRelist('contact', id);
+  }, [touchAndRelist]);
+
+  const selectApp = useCallback(async (id: string) => {
+    dispatch({ type: 'SELECT', target: { kind: 'app', app_id: id } });
+    void touchAndRelist('app', id);
+  }, [touchAndRelist]);
 
   const selectFolder = useCallback((id: string) => {
     dispatch({ type: 'SELECT', target: { kind: 'folder', folder_id: id } });
@@ -187,8 +201,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<Ctx>(() => ({
-    ...state, dispatch, refresh, selectEntry, selectContact, selectFolder, selectTop, goHome,
-  }), [state, refresh, selectEntry, selectContact, selectFolder, selectTop, goHome]);
+    ...state, dispatch, refresh, selectEntry, selectContact, selectApp, selectFolder, selectTop, goHome,
+  }), [state, refresh, selectEntry, selectContact, selectApp, selectFolder, selectTop, goHome]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

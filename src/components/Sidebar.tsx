@@ -4,6 +4,7 @@ import { ChevronRight, FolderPlus, Home as HomeIcon, Moon, Pencil, Plus, Search,
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { TOPS, TopMeta } from '../lib/categories';
+import { defaultKind } from '../lib/kinds';
 import { Contact, Entry, Folder, TopCategory } from '../types';
 
 type Node =
@@ -11,10 +12,9 @@ type Node =
   | { kind: 'entry'; entry: Entry }
   | { kind: 'contact'; contact: Contact };
 
-// Contacts and Site Links are "module" tops — the sidebar shows only their
-// sub-folders, not individual contacts/links. Clicking the top opens a
-// dedicated module page.
-const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks']);
+// Module tops show only their sub-folders in the sidebar (no individual
+// records as leaves). Clicking the top opens a dedicated module.
+const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks', 'apps', 'network', 'servers', 'dbs']);
 
 function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
   const out = {} as Record<TopCategory, Record<string, Node[]>>;
@@ -74,7 +74,8 @@ export function Sidebar() {
     if (!title?.trim()) return;
     try {
       const entry = await db.saveEntry({
-        title: title.trim(), top_category: top, folder_id: folderId,
+        title: title.trim(), top_category: top, folder_id: folderId, app_id: null,
+        kind: defaultKind(top), properties: '{}',
         is_favorite: false, content: '', url: null, tags: [],
       });
       dispatch({ type: 'UPSERT_ENTRY', entry });
@@ -111,6 +112,7 @@ export function Sidebar() {
     try {
       const saved = await db.saveEntry({
         id: entry.id, title: entry.title, top_category: entry.top_category, folder_id: entry.folder_id,
+        app_id: entry.app_id, kind: entry.kind, properties: entry.properties,
         is_favorite: !entry.is_favorite, content: entry.content, url: entry.url, tags: entry.tags,
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: saved });

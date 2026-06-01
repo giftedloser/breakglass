@@ -31,6 +31,9 @@ export interface Entry {
   title: string;
   top_category: TopCategory;
   folder_id: string | null;
+  app_id: string | null;
+  kind: string | null;
+  properties: string;          // JSON-encoded { key: string } map
   is_favorite: boolean;
   content: string;
   url: string | null;
@@ -45,10 +48,40 @@ export interface EntryInput {
   title: string;
   top_category: TopCategory;
   folder_id: string | null;
+  app_id: string | null;
+  kind: string | null;
+  properties: string;
   is_favorite: boolean;
   content: string;
   url: string | null;
   tags: string[];
+}
+
+export interface App {
+  id: string;
+  folder_id: string | null;
+  name: string;
+  vendor: string;
+  url: string;
+  login_notes: string;
+  criticality: string;        // 'high' | 'medium' | 'low' | ''
+  tags: string[];
+  is_favorite: boolean;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppInput {
+  id?: string;
+  folder_id: string | null;
+  name: string;
+  vendor: string;
+  url: string;
+  login_notes: string;
+  criticality: string;
+  tags: string[];
+  is_favorite: boolean;
 }
 
 export interface Contact {
@@ -81,7 +114,7 @@ export interface ContactInput {
 }
 
 export interface SearchHit {
-  kind: 'entry' | 'contact' | 'folder';
+  kind: 'entry' | 'contact' | 'folder' | 'app';
   id: string;
   title: string;
   top_category: TopCategory;
@@ -91,7 +124,7 @@ export interface SearchHit {
 }
 
 export interface RecentItem {
-  kind: 'entry' | 'contact';
+  kind: 'entry' | 'contact' | 'app';
   id: string;
   title: string;
   top_category: TopCategory;
@@ -105,4 +138,5 @@ export type SelectionTarget =
   | { kind: 'top'; top: TopCategory }
   | { kind: 'folder'; folder_id: string }
   | { kind: 'entry'; entry_id: string }
-  | { kind: 'contact'; contact_id: string };
+  | { kind: 'contact'; contact_id: string }
+  | { kind: 'app'; app_id: string };

@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { TOP_BY_ID, topLabel } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
 import { db, openExternal } from '../lib/invoke';
+import { defaultKind } from '../lib/kinds';
 import { Folder } from '../types';
 
 function pathOf(folder: Folder, all: Folder[]): Folder[] {
@@ -36,7 +37,8 @@ export function FolderView({ folderId }: { folderId: string }) {
     if (!title?.trim()) return;
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: top, folder_id: folder.id,
+        title: title.trim(), top_category: top, folder_id: folder.id, app_id: null,
+        kind: defaultKind(top), properties: '{}',
         is_favorite: false, content: '', url: meta.isLinks ? '' : null, tags: [],
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: e });

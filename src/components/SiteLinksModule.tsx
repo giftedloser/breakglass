@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, Folder as FolderIcon, Plus, Search } from 'lucide-react';
+import { ExternalLink, Folder as FolderIcon, Plus, Search, Star } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
+import { parseProperties } from '../lib/kinds';
 
 interface Props { initialFolder: string | null }
+
 export function SiteLinksModule({ initialFolder }: Props) {
   const { entries, folders, selectEntry, dispatch } = useApp();
   const [query, setQuery] = useState('');
@@ -19,14 +21,13 @@ export function SiteLinksModule({ initialFolder }: Props) {
     const q = query.trim().toLowerCase();
     return entries
       .filter((e) => e.top_category === 'sitelinks')
-      .filter((e) => {
-        if (folderFilter === null) return true;
-        if (folderFilter === '') return !e.folder_id;
-        return e.folder_id === folderFilter;
-      })
+      .filter((e) => folderFilter === null ? true : folderFilter === '' ? !e.folder_id : e.folder_id === folderFilter)
       .filter((e) => {
         if (!q) return true;
-        return e.title.toLowerCase().includes(q) || (e.url || '').toLowerCase().includes(q);
+        const desc = parseProperties(e.properties).description ?? '';
+        return e.title.toLowerCase().includes(q)
+          || (e.url || '').toLowerCase().includes(q)
+          || desc.toLowerCase().includes(q);
       })
       .sort((a, b) => {
         if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
@@ -39,9 +40,11 @@ export function SiteLinksModule({ initialFolder }: Props) {
     if (!title?.trim()) return;
     const url = window.prompt('URL');
     if (!url?.trim()) return;
+    const description = window.prompt('Description (optional)') ?? '';
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: 'sitelinks', folder_id: folderFilter || null,
+        title: title.trim(), top_category: 'sitelinks', folder_id: folderFilter || null, app_id: null,
+        kind: 'generic', properties: JSON.stringify({ description: description.trim() }),
         is_favorite: false, content: '', url: url.trim(), tags: [],
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: e });
@@ -88,16 +91,21 @@ export function SiteLinksModule({ initialFolder }: Props) {
         ? <div className="module-empty">No site links yet. Click "New link" to add one.</div>
         : (
           <div className="sitelinks-grid">
-            {links.map((e) => (
-              <div key={e.id} className="sitelink-card" onClick={() => openExternal(e.url)} title={e.url ?? ''}>
-                <div className="sl-title">
-                  <ExternalLink size={12} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                  {e.is_favorite ? '★ ' : ''}{e.title || '(untitled)'}
+            {links.map((e) => {
+              const desc = parseProperties(e.properties).description ?? '';
+              return (
+                <div key={e.id} className="sitelink-card" onClick={() => openExternal(e.url)} title={e.url ?? ''}>
+                  <div className="sl-title">
+                    <ExternalLink size={12} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                    {e.is_favorite && <Star size={11} className="star-mark filled" style={{ verticalAlign: 'middle', marginRight: 4 }} />}
+                    {e.title || '(untitled)'}
+                  </div>
+                  <div className="sl-url">{e.url || 'no URL'}</div>
+                  {desc && <div className="sl-desc">{desc}</div>}
+                  <button className="sl-edit" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
                 </div>
-                <div className="sl-url">{e.url || 'no URL'}</div>
-                <button className="sl-edit" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
     </div>

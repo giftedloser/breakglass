@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { TOP_BY_ID } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
 import { db, openExternal } from '../lib/invoke';
+import { defaultKind } from '../lib/kinds';
 import { TopCategory } from '../types';
 
 export function TopView({ top }: { top: TopCategory }) {
@@ -19,7 +20,8 @@ export function TopView({ top }: { top: TopCategory }) {
     if (!title?.trim()) return;
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: top, folder_id: null,
+        title: title.trim(), top_category: top, folder_id: null, app_id: null,
+        kind: defaultKind(top), properties: '{}',
         is_favorite: false, content: '', url: meta.isLinks ? '' : null, tags: [],
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: e });

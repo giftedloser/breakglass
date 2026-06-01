@@ -5,25 +5,26 @@ import { openExternal } from '../lib/invoke';
 import { ExternalLink, Star } from 'lucide-react';
 
 export function HomeView() {
-  const { entries, contacts, recents, selectEntry, selectContact } = useApp();
+  const { entries, contacts, apps, recents, selectEntry, selectContact, selectApp } = useApp();
   const entriesById = new Map(entries.map((e) => [e.id, e]));
 
-  const openItem = (kind: 'entry' | 'contact', id: string) => {
+  const openItem = (kind: 'entry' | 'contact' | 'app', id: string) => {
     if (kind === 'entry') {
       const e = entriesById.get(id);
       if (e && e.top_category === 'sitelinks' && e.url) { void openExternal(e.url); return; }
       void selectEntry(id);
+    } else if (kind === 'app') {
+      void selectApp(id);
     } else {
       void selectContact(id);
     }
   };
 
-  const pinnedEntries = entries.filter((e) => e.is_favorite).slice(0, 12);
-  const pinnedContacts = contacts.filter((c) => c.is_favorite).slice(0, 12);
   const pinned = [
-    ...pinnedEntries.map((e) => ({ kind: 'entry' as const, id: e.id, title: e.title, top: e.top_category, updated_at: e.updated_at })),
-    ...pinnedContacts.map((c) => ({ kind: 'contact' as const, id: c.id, title: c.name, top: 'contacts' as const, updated_at: c.updated_at })),
-  ].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    ...entries.filter((e) => e.is_favorite).map((e) => ({ kind: 'entry' as const, id: e.id, title: e.title, top: e.top_category, updated_at: e.updated_at })),
+    ...contacts.filter((c) => c.is_favorite).map((c) => ({ kind: 'contact' as const, id: c.id, title: c.name, top: 'contacts' as const, updated_at: c.updated_at })),
+    ...apps.filter((a) => a.is_favorite).map((a) => ({ kind: 'app' as const, id: a.id, title: a.name, top: 'apps' as const, updated_at: a.updated_at })),
+  ].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 16);
 
   return (
     <div className="content-pane">

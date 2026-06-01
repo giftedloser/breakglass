@@ -23,6 +23,9 @@ pub struct Entry {
     pub title: String,
     pub top_category: String,
     pub folder_id: Option<String>,
+    pub app_id: Option<String>,
+    pub kind: Option<String>,
+    pub properties: String,
     pub is_favorite: bool,
     pub content: String,
     pub url: Option<String>,
@@ -38,10 +41,42 @@ pub struct EntryInput {
     pub title: String,
     pub top_category: String,
     pub folder_id: Option<String>,
+    pub app_id: Option<String>,
+    pub kind: Option<String>,
+    pub properties: String,
     pub is_favorite: bool,
     pub content: String,
     pub url: Option<String>,
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct App {
+    pub id: String,
+    pub folder_id: Option<String>,
+    pub name: String,
+    pub vendor: String,
+    pub url: String,
+    pub login_notes: String,
+    pub criticality: String,
+    pub tags: Vec<String>,
+    pub is_favorite: bool,
+    pub position: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AppInput {
+    pub id: Option<String>,
+    pub folder_id: Option<String>,
+    pub name: String,
+    pub vendor: String,
+    pub url: String,
+    pub login_notes: String,
+    pub criticality: String,
+    pub tags: Vec<String>,
+    pub is_favorite: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -77,7 +112,7 @@ pub struct ContactInput {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchHit {
-    pub kind: String, // "entry" | "contact" | "folder"
+    pub kind: String,
     pub id: String,
     pub title: String,
     pub top_category: String,
@@ -88,7 +123,7 @@ pub struct SearchHit {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RecentItem {
-    pub kind: String, // "entry" | "contact"
+    pub kind: String,
     pub id: String,
     pub title: String,
     pub top_category: String,
@@ -101,6 +136,7 @@ pub struct ExportData {
     pub version: u32,
     pub exported_at: String,
     pub folders: Vec<Folder>,
+    pub apps: Vec<App>,
     pub entries: Vec<Entry>,
     pub contacts: Vec<Contact>,
 }
