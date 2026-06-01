@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Copy, FolderInput, Star, Trash2, X } from 'lucide-react';
 import { MoveDialog } from './MoveDialog';
@@ -33,6 +33,7 @@ export function ContactView({ contactId }: { contactId: string }) {
   const [tags, setTags] = useState<string[]>(contact?.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
     if (!contact) return;
@@ -55,6 +56,8 @@ export function ContactView({ contactId }: { contactId: string }) {
         tags: overrides.tags ?? tags, is_favorite: overrides.is_favorite ?? contact.is_favorite,
       });
       dispatch({ type: 'UPSERT_CONTACT', contact: saved });
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 900);
     } catch (err) { toast.error(String(err)); }
   };
 
@@ -128,7 +131,10 @@ export function ContactView({ contactId }: { contactId: string }) {
       </div>
 
       <div className="entry-meta">
-        <span className="meta-when">Updated {formatRelativeDate(contact.updated_at)}</span>
+        <span className="meta-when">
+          Updated {formatRelativeDate(contact.updated_at)}
+          {savedFlash && <span className="saved-flash"> · saved</span>}
+        </span>
         <div className="tag-row">
           {tags.map((t) => (
             <span key={t} className="tag-pill">

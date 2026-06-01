@@ -121,8 +121,33 @@ input, textarea { font: inherit; color: inherit; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .folder-icon { color: var(--text-dim); font-size: 11px; }
 .leaf-icon { color: var(--text-dim); font-size: 11px; width: 12px; display: inline-block; text-align: center; }
-.star-mark { color: var(--warn); }
-.star-mark.filled { fill: var(--warn); }
+.star-mark { color: var(--accent); }
+.star-mark.filled { fill: var(--accent); }
+
+.leaf-pin {
+  background: transparent; border: 0; padding: 2px 4px; cursor: pointer;
+  color: var(--text-dim); display: none; border-radius: 3px;
+}
+.leaf-pin:hover { color: var(--accent); background: var(--panel-hover); }
+.leaf-pin.is-pinned { display: inline-flex; color: var(--accent); }
+.leaf-pin.is-pinned svg { fill: var(--accent); }
+.tree-row:hover .leaf-pin { display: inline-flex; }
+
+.row-edit {
+  margin-left: auto; background: transparent; border: 1px solid transparent;
+  color: var(--text-dim); font-size: 11px; padding: 2px 6px; border-radius: 3px; cursor: pointer;
+  opacity: 0;
+}
+.row:hover .row-edit { opacity: 1; border-color: var(--line); color: var(--text-muted); }
+.row-edit:hover { color: var(--text); background: var(--panel-hover); }
+
+.saved-flash { color: var(--good); opacity: 0; animation: bg-flash 900ms ease forwards; }
+@keyframes bg-flash {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 .tree-actions {
   display: none; gap: 2px; padding-right: 2px;

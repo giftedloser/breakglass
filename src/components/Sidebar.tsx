@@ -11,21 +11,18 @@ type Node =
   | { kind: 'entry'; entry: Entry }
   | { kind: 'contact'; contact: Contact };
 
-function buildTree(top: TopCategory, folders: Folder[], entries: Entry[], contacts: Contact[]) {
-  const byParent: Record<string, Node[]> = {};
-  const push = (key: string, node: Node) => {
-    if (!byParent[key]) byParent[key] = [];
-    byParent[key].push(node);
+function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
+  // One pass over all data, group into per-top buckets keyed by parent.
+  const out = {} as Record<TopCategory, Record<string, Node[]>>;
+  for (const t of TOPS) out[t.id] = {};
+  const push = (top: TopCategory, key: string, node: Node) => {
+    const bucket = out[top];
+    if (!bucket[key]) bucket[key] = [];
+    bucket[key].push(node);
   };
-  for (const folder of folders.filter((f) => f.top_category === top)) {
-    push(folder.parent_id ?? '__root__', { kind: 'folder', folder });
-  }
-  for (const entry of entries.filter((e) => e.top_category === top)) {
-    push(entry.folder_id ?? '__root__', { kind: 'entry', entry });
-  }
-  if (top === 'contacts') {
-    for (const c of contacts) push(c.folder_id ?? '__root__', { kind: 'contact', contact: c });
-  }
+  for (const folder of folders) push(folder.top_category, folder.parent_id ?? '__root__', { kind: 'folder', folder });
+  for (const entry of entries) push(entry.top_category, entry.folder_id ?? '__root__', { kind: 'entry', entry });
+  for (const c of contacts) push('contacts', c.folder_id ?? '__root__', { kind: 'contact', contact: c });
   const cmp = (a: Node, b: Node) => {
     const ord = (n: Node) => (n.kind === 'folder' ? 0 : 1);
     if (ord(a) !== ord(b)) return ord(a) - ord(b);
@@ -33,18 +30,16 @@ function buildTree(top: TopCategory, folders: Folder[], entries: Entry[], contac
     const bn = b.kind === 'folder' ? b.folder.name : b.kind === 'entry' ? b.entry.title : b.contact.name;
     return an.localeCompare(bn);
   };
-  for (const k of Object.keys(byParent)) byParent[k].sort(cmp);
-  return byParent;
+  for (const top of TOPS) {
+    for (const k of Object.keys(out[top.id])) out[top.id][k].sort(cmp);
+  }
+  return out;
 }
 
 export function Sidebar() {
   const { folders, entries, contacts, selection, expanded, dispatch, selectEntry, selectContact, selectFolder, selectTop, goHome, theme } = useApp();
 
-  const trees = useMemo(() => {
-    const out = {} as Record<TopCategory, ReturnType<typeof buildTree>>;
-    for (const t of TOPS) out[t.id] = buildTree(t.id, folders, entries, contacts);
-    return out;
-  }, [folders, entries, contacts]);
+  const trees = useMemo(() => buildTrees(folders, entries, contacts), [folders, entries, contacts]);
 
   const isExpanded = (id: string) => expanded[id] !== false; // default open
   const toggleExpand = (id: string) => dispatch({ type: 'TOGGLE_EXPANDED', id });
@@ -102,6 +97,32 @@ export function Sidebar() {
     } catch (err) { toast.error(String(err)); }
   };
 
+  const togglePinEntry = async (e: React.MouseEvent, entryId: string) => {
+    e.stopPropagation();
+    const entry = entries.find((x) => x.id === entryId);
+    if (!entry) return;
+    try {
+      const saved = await db.saveEntry({
+        id: entry.id, title: entry.title, top_category: entry.top_category, folder_id: entry.folder_id,
+        is_favorite: !entry.is_favorite, content: entry.content, url: entry.url, tags: entry.tags,
+      });
+      dispatch({ type: 'UPSERT_ENTRY', entry: saved });
+    } catch (err) { toast.error(String(err)); }
+  };
+
+  const togglePinContact = async (e: React.MouseEvent, contactId: string) => {
+    e.stopPropagation();
+    const c = contacts.find((x) => x.id === contactId);
+    if (!c) return;
+    try {
+      const saved = await db.saveContact({
+        id: c.id, folder_id: c.folder_id, name: c.name, role: c.role, company: c.company,
+        phone: c.phone, email: c.email, notes: c.notes, tags: c.tags, is_favorite: !c.is_favorite,
+      });
+      dispatch({ type: 'UPSERT_CONTACT', contact: saved });
+    } catch (err) { toast.error(String(err)); }
+  };
+
   const deleteFolder = async (f: Folder) => {
     if (!window.confirm(`Delete folder "${f.name}"? Sub-folders go with it. Entries inside survive but lose their folder.`)) return;
     try {
@@ -143,6 +164,7 @@ export function Sidebar() {
           }
           if (n.kind === 'entry') {
             const id = n.entry.id;
+            const pinned = n.entry.is_favorite;
             return (
               <li key={`e-${id}`}>
                 <div className={`tree-row leaf ${isSel('entry', id) ? 'is-selected' : ''}`}>
@@ -150,13 +172,16 @@ export function Sidebar() {
                   <button className="tree-name" onClick={() => selectEntry(id)} title={n.entry.title}>
                     <span className="leaf-icon">·</span>
                     <span className="truncate">{n.entry.title || '(untitled)'}</span>
-                    {n.entry.is_favorite && <Star size={10} className="star-mark" />}
+                  </button>
+                  <button className={`leaf-pin ${pinned ? 'is-pinned' : ''}`} onClick={(e) => togglePinEntry(e, id)} title={pinned ? 'Unpin' : 'Pin'}>
+                    <Star size={11} />
                   </button>
                 </div>
               </li>
             );
           }
           const id = n.contact.id;
+          const pinned = n.contact.is_favorite;
           return (
             <li key={`c-${id}`}>
               <div className={`tree-row leaf ${isSel('contact', id) ? 'is-selected' : ''}`}>
@@ -164,7 +189,9 @@ export function Sidebar() {
                 <button className="tree-name" onClick={() => selectContact(id)} title={n.contact.name}>
                   <span className="leaf-icon">☎</span>
                   <span className="truncate">{n.contact.name}</span>
-                  {n.contact.is_favorite && <Star size={10} className="star-mark" />}
+                </button>
+                <button className={`leaf-pin ${pinned ? 'is-pinned' : ''}`} onClick={(e) => togglePinContact(e, id)} title={pinned ? 'Unpin' : 'Pin'}>
+                  <Star size={11} />
                 </button>
               </div>
             </li>

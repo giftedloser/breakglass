@@ -1,10 +1,22 @@
 import { useApp } from '../context/AppContext';
 import { topLabel } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
-import { Star } from 'lucide-react';
+import { openExternal } from '../lib/invoke';
+import { ExternalLink, Star } from 'lucide-react';
 
 export function HomeView() {
   const { entries, contacts, recents, selectEntry, selectContact } = useApp();
+  const entriesById = new Map(entries.map((e) => [e.id, e]));
+
+  const openItem = (kind: 'entry' | 'contact', id: string) => {
+    if (kind === 'entry') {
+      const e = entriesById.get(id);
+      if (e && e.top_category === 'sitelinks' && e.url) { void openExternal(e.url); return; }
+      void selectEntry(id);
+    } else {
+      void selectContact(id);
+    }
+  };
 
   const pinnedEntries = entries.filter((e) => e.is_favorite).slice(0, 12);
   const pinnedContacts = contacts.filter((c) => c.is_favorite).slice(0, 12);
@@ -27,7 +39,7 @@ export function HomeView() {
         ) : (
           <ul className="row-list">
             {pinned.map((p) => (
-              <li key={`${p.kind}-${p.id}`} className="row" onClick={() => p.kind === 'entry' ? selectEntry(p.id) : selectContact(p.id)}>
+              <li key={`${p.kind}-${p.id}`} className="row" onClick={() => openItem(p.kind, p.id)}>
                 <Star size={12} className="star-mark" />
                 <span className="row-name">{p.title || '(untitled)'}</span>
                 <span className="row-when">{topLabel(p.top)} · {formatRelativeDate(p.updated_at)}</span>
@@ -44,7 +56,7 @@ export function HomeView() {
         ) : (
           <ul className="row-list">
             {recents.map((r) => (
-              <li key={`${r.kind}-${r.id}`} className="row" onClick={() => r.kind === 'entry' ? selectEntry(r.id) : selectContact(r.id)}>
+              <li key={`${r.kind}-${r.id}`} className="row" onClick={() => openItem(r.kind, r.id)}>
                 <span className="row-name">{r.title || '(untitled)'}</span>
                 <span className="row-when">{topLabel(r.top_category)} · {formatRelativeDate(r.viewed_at)}</span>
               </li>

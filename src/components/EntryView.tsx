@@ -33,15 +33,20 @@ export function EntryView({ entryId }: { entryId: string }) {
   const [editingBody, setEditingBody] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
   const isLinks = entry ? TOP_BY_ID[entry.top_category].isLinks : false;
   const dirtyRef = useRef(false);
+  const lastSavedContentRef = useRef('');
 
+  // Reset local state when the selected entry changes. If the previous entry
+  // had unsaved body edits, flush them before resetting so we don't lose work.
   useEffect(() => {
     if (!entry) return;
     setTitle(entry.title);
     setTags(entry.tags);
     setUrl(entry.url ?? '');
     setContent(entry.content);
+    lastSavedContentRef.current = entry.content;
     setEditingBody(false);
     dirtyRef.current = false;
   }, [entryId]);
@@ -62,6 +67,9 @@ export function EntryView({ entryId }: { entryId: string }) {
       const saved = await db.saveEntry(payload);
       dispatch({ type: 'UPSERT_ENTRY', entry: saved });
       dirtyRef.current = false;
+      lastSavedContentRef.current = saved.content;
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 900);
     } catch (err) { toast.error(String(err)); }
   };
 
@@ -70,6 +78,21 @@ export function EntryView({ entryId }: { entryId: string }) {
     window.addEventListener('bg-save', onSave);
     return () => window.removeEventListener('bg-save', onSave);
   }, [content, title, tags, url, entry]);
+
+  // Flush pending body edits when this entry is being swapped out, so leaving
+  // mid-edit doesn't silently discard work.
+  useEffect(() => {
+    return () => {
+      if (dirtyRef.current && entry) {
+        // Fire-and-forget; we're tearing down so we can't await meaningfully.
+        void db.saveEntry({
+          id: entry.id, title: entry.title, top_category: entry.top_category,
+          folder_id: entry.folder_id, is_favorite: entry.is_favorite,
+          content, url: entry.url, tags: entry.tags,
+        }).catch((err) => toast.error(`Couldn't save body edit: ${err}`));
+      }
+    };
+  }, [entryId]);
 
   const togglePin = async () => {
     if (!entry) return;
@@ -150,7 +173,10 @@ export function EntryView({ entryId }: { entryId: string }) {
       </div>
 
       <div className="entry-meta">
-        <span className="meta-when">Updated {formatRelativeDate(entry.updated_at)}</span>
+        <span className="meta-when">
+          Updated {formatRelativeDate(entry.updated_at)}
+          {savedFlash && <span className="saved-flash"> · saved</span>}
+        </span>
         <div className="tag-row">
           {tags.map((t) => (
             <span key={t} className="tag-pill">

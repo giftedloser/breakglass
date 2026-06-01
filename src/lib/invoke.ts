@@ -1,5 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
+import { open as openShell } from '@tauri-apps/plugin-shell';
+import toast from 'react-hot-toast';
 import { Contact, ContactInput, Entry, EntryInput, Folder, FolderInput, RecentItem, SearchHit } from '../types';
+
+export async function openExternal(url: string | null | undefined) {
+  if (!url) { toast.error('No URL set'); return; }
+  try { await openShell(url); }
+  catch (e) { toast.error(String(e)); }
+}
 
 export const db = {
   // folders

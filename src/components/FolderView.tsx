@@ -1,9 +1,9 @@
-import { Folder as FolderIcon, Plus } from 'lucide-react';
+import { ExternalLink, Folder as FolderIcon, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
 import { TOP_BY_ID, topLabel } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
-import { db } from '../lib/invoke';
+import { db, openExternal } from '../lib/invoke';
 import { Folder } from '../types';
 
 function pathOf(folder: Folder, all: Folder[]): Folder[] {
@@ -115,10 +115,18 @@ export function FolderView({ folderId }: { folderId: string }) {
           <h3>Entries</h3>
           <ul className="row-list">
             {dirEntries.sort((a, b) => a.title.localeCompare(b.title)).map((e) => (
-              <li key={e.id} className="row" onClick={() => selectEntry(e.id)}>
-                <span className="row-name">{e.title || '(untitled)'}</span>
-                <span className="row-when">{formatRelativeDate(e.updated_at)}</span>
-              </li>
+              meta.isLinks ? (
+                <li key={e.id} className="row" onClick={() => openExternal(e.url)} title={e.url ?? ''}>
+                  <ExternalLink size={12} />
+                  <span className="row-name">{e.title || '(untitled)'}</span>
+                  <button className="row-edit" title="Edit entry" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
+                </li>
+              ) : (
+                <li key={e.id} className="row" onClick={() => selectEntry(e.id)}>
+                  <span className="row-name">{e.title || '(untitled)'}</span>
+                  <span className="row-when">{formatRelativeDate(e.updated_at)}</span>
+                </li>
+              )
             ))}
             {dirContacts.sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <li key={c.id} className="row" onClick={() => selectContact(c.id)}>

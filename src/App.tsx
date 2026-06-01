@@ -15,7 +15,6 @@ export default function App() {
       const k = e.key.toLowerCase();
       if (k === 'k') { e.preventDefault(); dispatch({ type: 'TOGGLE_SEARCH', value: true }); }
       if (k === 's') { e.preventDefault(); window.dispatchEvent(new CustomEvent('bg-save')); }
-      if (k === 'n') { e.preventDefault(); window.dispatchEvent(new CustomEvent('bg-new')); }
       if (k === 'e') { e.preventDefault(); dispatch({ type: 'TOGGLE_EXPORT', value: true }); }
     };
     window.addEventListener('keydown', handler);

@@ -2,9 +2,20 @@ import { Star } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { topLabel } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
+import { openExternal } from '../lib/invoke';
 
 export function PinnedView() {
   const { entries, contacts, selectEntry, selectContact } = useApp();
+  const entriesById = new Map(entries.map((e) => [e.id, e]));
+  const openItem = (kind: 'entry' | 'contact', id: string) => {
+    if (kind === 'entry') {
+      const e = entriesById.get(id);
+      if (e && e.top_category === 'sitelinks' && e.url) { void openExternal(e.url); return; }
+      void selectEntry(id);
+    } else {
+      void selectContact(id);
+    }
+  };
   const items = [
     ...entries.filter((e) => e.is_favorite).map((e) => ({ kind: 'entry' as const, id: e.id, title: e.title, top: e.top_category, updated_at: e.updated_at })),
     ...contacts.filter((c) => c.is_favorite).map((c) => ({ kind: 'contact' as const, id: c.id, title: c.name, top: 'contacts' as const, updated_at: c.updated_at })),
@@ -21,7 +32,7 @@ export function PinnedView() {
         ) : (
           <ul className="row-list">
             {items.map((p) => (
-              <li key={`${p.kind}-${p.id}`} className="row" onClick={() => p.kind === 'entry' ? selectEntry(p.id) : selectContact(p.id)}>
+              <li key={`${p.kind}-${p.id}`} className="row" onClick={() => openItem(p.kind, p.id)}>
                 <Star size={12} className="star-mark" />
                 <span className="row-name">{p.title || '(untitled)'}</span>
                 <span className="row-when">{topLabel(p.top)} · {formatRelativeDate(p.updated_at)}</span>
