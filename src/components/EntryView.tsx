@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, FolderInput, Pencil, Save, Star, Trash2, X } from 'lucide-react';
+import { Check, ExternalLink, FolderInput, Pencil, Star, Trash2, X } from 'lucide-react';
 import { MoveDialog } from './MoveDialog';
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
@@ -34,8 +34,7 @@ export function EntryView({ entryId }: { entryId: string }) {
   const [content, setContent] = useState(entry?.content ?? '');
   const [kind, setKind] = useState<string>(entry?.kind ?? defaultKind(entry?.top_category ?? 'notes'));
   const [props, setProps] = useState<Record<string, string>>(parseProperties(entry?.properties));
-  const [editingBody, setEditingBody] = useState(false);
-  const [editingFields, setEditingFields] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -51,11 +50,14 @@ export function EntryView({ entryId }: { entryId: string }) {
     setKind(entry.kind ?? defaultKind(entry.top_category));
     const initProps = parseProperties(entry.properties);
     setProps(initProps);
-    setEditingBody(false);
-    // Auto-expand fields editor only when there are configured fields and they're all empty.
+    // Auto-open edit only when this entry has literally no content yet
+    // (fresh from "+ New entry"). Otherwise default to read mode.
     const fieldList = kindDef(entry.top_category, entry.kind).fields;
-    const anyEmpty = fieldList.length > 0 && fieldList.every((f) => !initProps[f.key]?.trim());
-    setEditingFields(anyEmpty);
+    const noBody = !entry.content || entry.content === '{}' || entry.content === '';
+    const noFields = fieldList.length === 0 || fieldList.every((f) => !initProps[f.key]?.trim());
+    const noUrl = !entry.url || entry.url === '';
+    const wholly_empty = noBody && noFields && (isLinks ? noUrl : true);
+    setEditing(wholly_empty);
     dirtyRef.current = false;
   }, [entryId]);
 
@@ -92,6 +94,7 @@ export function EntryView({ entryId }: { entryId: string }) {
     return () => window.removeEventListener('bg-save', onSave);
   }, [content, title, tags, url, kind, props, entry]);
 
+  // Flush pending edits when this entry is being swapped out or left mid-edit.
   useEffect(() => {
     return () => {
       if (dirtyRef.current && entry) {
@@ -101,7 +104,7 @@ export function EntryView({ entryId }: { entryId: string }) {
           kind: entry.kind, properties: entry.properties,
           is_favorite: entry.is_favorite,
           content, url: entry.url, tags: entry.tags,
-        }).catch((err) => toast.error(`Couldn't save body edit: ${err}`));
+        }).catch((err) => toast.error(`Couldn't save: ${err}`));
       }
     };
   }, [entryId]);
@@ -143,6 +146,11 @@ export function EntryView({ entryId }: { entryId: string }) {
     void save({ tags: next });
   };
 
+  const finishEditing = async () => {
+    await save();
+    setEditing(false);
+  };
+
   const path = useMemo(() => folderPath(entry?.folder_id ?? null, folders), [entry?.folder_id, folders]);
   const parentApp = useMemo(() => entry?.app_id ? apps.find((a) => a.id === entry.app_id) : null, [entry?.app_id, apps]);
 
@@ -153,8 +161,8 @@ export function EntryView({ entryId }: { entryId: string }) {
   const kinds = KINDS[entry.top_category];
   const showKindPicker = kinds.length > 1;
   const fields = kindDef(entry.top_category, kind).fields;
+  const hideBody = kindDef(entry.top_category, kind).hideBody;
   const updateField = (key: string, value: string) => setProps((p) => ({ ...p, [key]: value }));
-  const saveFields = () => save({ properties: props });
 
   return (
     <div className="content-pane">
@@ -182,6 +190,9 @@ export function EntryView({ entryId }: { entryId: string }) {
           <button className="icon-btn" onClick={togglePin} title={entry.is_favorite ? 'Unpin' : 'Pin'}>
             <Star size={14} className={entry.is_favorite ? 'star-mark filled' : ''} />
           </button>
+          {editing
+            ? <button className="icon-btn is-accent" onClick={finishEditing} title="Done editing"><Check size={14} /></button>
+            : <button className="icon-btn" onClick={() => setEditing(true)} title="Edit entry"><Pencil size={14} /></button>}
           <button className="icon-btn" onClick={() => setMoveOpen(true)} title="Move to..."><FolderInput size={14} /></button>
           <button className="icon-btn danger" onClick={remove} title="Delete entry"><Trash2 size={14} /></button>
         </div>
@@ -191,61 +202,69 @@ export function EntryView({ entryId }: { entryId: string }) {
                     currentFolderId={entry.folder_id} onClose={() => setMoveOpen(false)} />
       )}
 
-      <div className="entry-title-row">
-        <input className="entry-title-input" value={title} onChange={(e) => setTitle(e.target.value)}
-               onBlur={() => save({ title })}
-               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
-      </div>
+      {editing ? (
+        <div className="entry-title-row">
+          <input className="entry-title-input" value={title} onChange={(e) => setTitle(e.target.value)}
+                 onBlur={() => save({ title })} autoFocus
+                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+        </div>
+      ) : (
+        <h1 className="read-title">{title || '(untitled)'}</h1>
+      )}
 
       <div className="entry-meta">
         <span className="meta-when">
           Updated {formatRelativeDate(entry.updated_at)}
           {savedFlash && <span className="saved-flash"> · saved</span>}
         </span>
-        {showKindPicker && (
+        {showKindPicker && editing && (
           <select className="kind-select" value={kind} onChange={(e) => { setKind(e.target.value); save({ kind: e.target.value }); }}>
             {kinds.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
           </select>
         )}
-        <div className="tag-row">
-          {tags.map((t) => (
-            <span key={t} className="tag-pill">
-              {t}
-              <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>
-            </span>
-          ))}
-          <input className="tag-input" placeholder="+ tag" value={tagDraft}
-                 onChange={(e) => setTagDraft(e.target.value)}
-                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-                 onBlur={() => tagDraft && addTag()} />
-        </div>
+        {!editing && showKindPicker && (
+          <span className="meta-pill">{kindDef(entry.top_category, kind).label}</span>
+        )}
+        {(tags.length > 0 || editing) && (
+          <div className="tag-row">
+            {tags.map((t) => (
+              <span key={t} className="tag-pill">
+                {t}
+                {editing && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
+              </span>
+            ))}
+            {editing && (
+              <input className="tag-input" placeholder="+ tag" value={tagDraft}
+                     onChange={(e) => setTagDraft(e.target.value)}
+                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                     onBlur={() => tagDraft && addTag()} />
+            )}
+          </div>
+        )}
       </div>
 
       {isLinks && (
         <section className="panel">
           <h3>URL</h3>
-          <div className="url-row">
-            <input className="url-input" value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => save({ url })} placeholder="https://..." />
-            {url && <button className="primary-btn" onClick={() => openExternal(url)}>
-              <ExternalLink size={12} /> Open
-            </button>}
-          </div>
+          {editing ? (
+            <div className="url-row">
+              <input className="url-input" value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => save({ url })} placeholder="https://..." />
+              {url && <button className="primary-btn" onClick={() => openExternal(url)}>
+                <ExternalLink size={12} /> Open
+              </button>}
+            </div>
+          ) : (
+            url
+              ? <a className="link big-link" onClick={() => openExternal(url)}><ExternalLink size={12} /> {url}</a>
+              : <div className="empty">No URL set.</div>
+          )}
         </section>
       )}
 
       {fields.length > 0 && (
-        <section className={`panel meta-panel ${editingFields ? 'is-editing' : 'is-collapsed'}`}>
-          <div className="body-head">
-            <h3>Fields</h3>
-            {editingFields
-              ? <button className="primary-btn" onClick={async () => { await saveFields(); setEditingFields(false); }}>
-                  <Save size={12} /> Done
-                </button>
-              : <button className="ghost-btn" onClick={() => setEditingFields(true)}>
-                  <Pencil size={12} /> Edit fields
-                </button>}
-          </div>
-          {editingFields ? (
+        <section className="panel">
+          <h3>Fields</h3>
+          {editing ? (
             <div className="field-grid">
               {fields.map((f) => (
                 <label key={f.key} className={f.wide ? 'wide' : ''}>
@@ -255,14 +274,14 @@ export function EntryView({ entryId }: { entryId: string }) {
                       className={f.type === 'code' ? 'code-input' : 'notes-area'}
                       rows={f.type === 'code' ? 10 : 4}
                       value={props[f.key] ?? ''} placeholder={f.placeholder}
-                      onChange={(e) => updateField(f.key, e.target.value)}
-                      onBlur={saveFields}
+                      onChange={(e) => { updateField(f.key, e.target.value); dirtyRef.current = true; }}
+                      onBlur={() => save({ properties: props })}
                       spellCheck={f.type === 'code' ? false : undefined}
                     />
                   ) : (
                     <input value={props[f.key] ?? ''} placeholder={f.placeholder}
-                           onChange={(e) => updateField(f.key, e.target.value)}
-                           onBlur={saveFields} />
+                           onChange={(e) => { updateField(f.key, e.target.value); dirtyRef.current = true; }}
+                           onBlur={() => save({ properties: props })} />
                   )}
                 </label>
               ))}
@@ -270,7 +289,7 @@ export function EntryView({ entryId }: { entryId: string }) {
           ) : (
             (() => {
               const hasAny = fields.some((f) => props[f.key]?.trim());
-              if (!hasAny) return <div className="empty">No fields filled in yet.</div>;
+              if (!hasAny) return <div className="empty">No fields filled in.</div>;
               return (
                 <div className="kv-rich">
                   {fields.map((f) => {
@@ -293,12 +312,10 @@ export function EntryView({ entryId }: { entryId: string }) {
                       );
                     }
                     return (
-                      <Fragment key={f.key}>
-                        <div className="kv-inline">
-                          <span className="kv-key">{f.label}</span>
-                          <span className="kv-val">{val}</span>
-                        </div>
-                      </Fragment>
+                      <div className="kv-inline" key={f.key}>
+                        <span className="kv-key">{f.label}</span>
+                        <span className="kv-val">{val}</span>
+                      </div>
                     );
                   })}
                 </div>
@@ -308,19 +325,10 @@ export function EntryView({ entryId }: { entryId: string }) {
         </section>
       )}
 
-      {!isLinks && !kindDef(entry.top_category, kind).hideBody && (
-        <section className={`panel body-panel ${editingBody ? 'is-editing-body' : 'is-reading-body'}`}>
-          <div className="body-head">
-            <h3>Body</h3>
-            {editingBody
-              ? <button className="primary-btn" onClick={async () => { await save({ content }); setEditingBody(false); }}>
-                  <Save size={12} /> Done
-                </button>
-              : <button className="ghost-btn" onClick={() => setEditingBody(true)}>
-                  <Pencil size={12} /> Edit
-                </button>}
-          </div>
-          <Editor content={content || ''} onChange={(json) => { setContent(json); dirtyRef.current = true; }} editable={editingBody} placeholder="Empty. Click Edit to add content." />
+      {!isLinks && !hideBody && (
+        <section className={`panel body-panel ${editing ? 'is-editing-body' : 'is-reading-body'}`}>
+          <h3>Body</h3>
+          <Editor content={content || ''} onChange={(json) => { setContent(json); dirtyRef.current = true; }} editable={editing} placeholder="Empty. Click the pen above to add content." />
         </section>
       )}
 

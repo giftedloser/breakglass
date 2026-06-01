@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Copy, FolderInput, Pencil, Save, Star, Trash2, X } from 'lucide-react';
+import { Check, Copy, FolderInput, Pencil, Star, Trash2, X } from 'lucide-react';
 import { MoveDialog } from './MoveDialog';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
@@ -35,9 +35,8 @@ export function ContactView({ contactId }: { contactId: string }) {
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-  const noDetails = !(contact?.role || contact?.company || contact?.phone || contact?.email);
-  const [editingDetails, setEditingDetails] = useState(noDetails);
-  const [editingNotes, setEditingNotes] = useState(false);
+  const noContent = !(contact?.role || contact?.company || contact?.phone || contact?.email || contact?.notes);
+  const [editing, setEditing] = useState(noContent);
 
   useEffect(() => {
     if (!contact) return;
@@ -48,8 +47,7 @@ export function ContactView({ contactId }: { contactId: string }) {
     setEmail(contact.email);
     setNotes(contact.notes);
     setTags(contact.tags);
-    setEditingDetails(!(contact.role || contact.company || contact.phone || contact.email));
-    setEditingNotes(false);
+    setEditing(!(contact.role || contact.company || contact.phone || contact.email || contact.notes));
   }, [contactId]);
 
   const save = async (overrides: Partial<{ name: string; role: string; company: string; phone: string; email: string; notes: string; tags: string[]; is_favorite: boolean }> = {}) => {
@@ -123,6 +121,9 @@ export function ContactView({ contactId }: { contactId: string }) {
           <button className="icon-btn" onClick={togglePin} title={contact.is_favorite ? 'Unpin' : 'Pin'}>
             <Star size={14} className={contact.is_favorite ? 'star-mark filled' : ''} />
           </button>
+          {editing
+            ? <button className="icon-btn is-accent" onClick={async () => { await save(); setEditing(false); }} title="Done editing"><Check size={14} /></button>
+            : <button className="icon-btn" onClick={() => setEditing(true)} title="Edit contact"><Pencil size={14} /></button>}
           <button className="icon-btn" onClick={() => setMoveOpen(true)} title="Move to..."><FolderInput size={14} /></button>
           <button className="icon-btn danger" onClick={remove} title="Delete contact"><Trash2 size={14} /></button>
         </div>
@@ -132,42 +133,39 @@ export function ContactView({ contactId }: { contactId: string }) {
                     currentFolderId={contact.folder_id} onClose={() => setMoveOpen(false)} />
       )}
 
-      <div className="entry-title-row">
-        <input className="entry-title-input plain-on-blur" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
-      </div>
+      {editing ? (
+        <div className="entry-title-row">
+          <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} autoFocus />
+        </div>
+      ) : (
+        <h1 className="read-title">{name || '(unnamed)'}</h1>
+      )}
 
       <div className="entry-meta">
         <span className="meta-when">
           Updated {formatRelativeDate(contact.updated_at)}
           {savedFlash && <span className="saved-flash"> · saved</span>}
         </span>
-        <div className="tag-row">
-          {tags.map((t) => (
-            <span key={t} className="tag-pill">
-              {t}{editingDetails && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
-            </span>
-          ))}
-          {editingDetails && (
-            <input className="tag-input" placeholder="+ tag" value={tagDraft}
-                   onChange={(e) => setTagDraft(e.target.value)}
-                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-                   onBlur={() => tagDraft && addTag()} />
-          )}
-        </div>
+        {(tags.length > 0 || editing) && (
+          <div className="tag-row">
+            {tags.map((t) => (
+              <span key={t} className="tag-pill">
+                {t}{editing && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
+              </span>
+            ))}
+            {editing && (
+              <input className="tag-input" placeholder="+ tag" value={tagDraft}
+                     onChange={(e) => setTagDraft(e.target.value)}
+                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                     onBlur={() => tagDraft && addTag()} />
+            )}
+          </div>
+        )}
       </div>
 
-      <section className={`panel meta-panel ${editingDetails ? 'is-editing' : 'is-collapsed'}`}>
-        <div className="body-head">
-          <h3>Details</h3>
-          {editingDetails
-            ? <button className="primary-btn" onClick={async () => { await save(); setEditingDetails(false); }}>
-                <Save size={12} /> Done
-              </button>
-            : <button className="ghost-btn" onClick={() => setEditingDetails(true)}>
-                <Pencil size={12} /> Edit
-              </button>}
-        </div>
-        {editingDetails ? (
+      <section className="panel">
+        <h3>Details</h3>
+        {editing ? (
           <div className="field-grid">
             <label>Role <input value={role} onChange={(e) => setRole(e.target.value)} onBlur={() => save({ role })} /></label>
             <label>Company <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={() => save({ company })} /></label>
@@ -202,24 +200,15 @@ export function ContactView({ contactId }: { contactId: string }) {
         )}
       </section>
 
-      <section className={`panel meta-panel ${editingNotes ? 'is-editing' : 'is-collapsed'}`}>
-        <div className="body-head">
+      {(notes || editing) && (
+        <section className="panel">
           <h3>Notes</h3>
-          {editingNotes
-            ? <button className="primary-btn" onClick={async () => { await save({ notes }); setEditingNotes(false); }}>
-                <Save size={12} /> Done
-              </button>
-            : <button className="ghost-btn" onClick={() => setEditingNotes(true)}>
-                <Pencil size={12} /> Edit
-              </button>}
-        </div>
-        {editingNotes
-          ? <textarea className="notes-area" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => save({ notes })} placeholder="Any extra notes..." />
-          : notes
-            ? <div className="notes-readonly">{notes}</div>
-            : <div className="empty">No notes.</div>
-        }
-      </section>
+          {editing
+            ? <textarea className="notes-area" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => save({ notes })} placeholder="Any extra notes..." />
+            : <div className="notes-readonly">{notes}</div>
+          }
+        </section>
+      )}
 
       <Attachments parentKind="contact" parentId={contact.id} />
     </div>

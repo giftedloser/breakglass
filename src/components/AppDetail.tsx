@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, Pencil, Plus, Save, Star, Trash2, X } from 'lucide-react';
+import { Check, ExternalLink, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
 import { formatRelativeDate } from '../lib/utils';
@@ -25,16 +25,15 @@ export function AppDetail({ appId }: { appId: string }) {
   const [tags, setTags] = useState<string[]>(app?.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
-  // Editing meta starts off unless the app has no metadata yet (fresh from "+ New app").
-  const noMeta = !(app?.vendor || app?.url || app?.login_notes || app?.criticality);
-  const [editingInfo, setEditingInfo] = useState(noMeta);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (!app) return;
     setName(app.name); setVendor(app.vendor); setUrl(app.url); setLoginNotes(app.login_notes);
     setCriticality(app.criticality); setTags(app.tags);
-    const empty = !(app.vendor || app.url || app.login_notes || app.criticality);
-    setEditingInfo(empty);
+    // Start in edit mode only for brand-new apps with no metadata.
+    const noMeta = !(app.vendor || app.url || app.login_notes || app.criticality);
+    setEditing(noMeta);
   }, [appId]);
 
   const save = async (overrides: Partial<{ name: string; vendor: string; url: string; login_notes: string; criticality: string; tags: string[]; is_favorite: boolean }> = {}) => {
@@ -105,48 +104,46 @@ export function AppDetail({ appId }: { appId: string }) {
   return (
     <div className="content-pane">
       <div className="app-detail-header">
-        <input className="entry-title-input plain-on-blur" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
+        {editing
+          ? <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} autoFocus />
+          : <h1 className="read-title">{name || '(unnamed app)'}</h1>}
         <div className="header-actions">
           <button className="icon-btn" onClick={togglePin} title={app.is_favorite ? 'Unpin' : 'Pin'}>
             <Star size={14} className={app.is_favorite ? 'star-mark filled' : ''} />
           </button>
+          {editing
+            ? <button className="icon-btn is-accent" onClick={async () => { await save(); setEditing(false); }} title="Done editing"><Check size={14} /></button>
+            : <button className="icon-btn" onClick={() => setEditing(true)} title="Edit app"><Pencil size={14} /></button>}
           <button className="icon-btn danger" onClick={remove} title="Delete app"><Trash2 size={14} /></button>
         </div>
       </div>
 
       <div className="entry-meta">
-        <span className="meta-when">Updated {formatRelativeDate(app.updated_at)}
+        <span className="meta-when">
+          Updated {formatRelativeDate(app.updated_at)}
           {savedFlash && <span className="saved-flash"> · saved</span>}
         </span>
-        {!editingInfo && criticality && <span className="meta-pill">{CRIT_LABEL[criticality]}</span>}
-        <div className="tag-row">
-          {tags.map((t) => (
-            <span key={t} className="tag-pill">
-              {t}{editingInfo && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
-            </span>
-          ))}
-          {editingInfo && (
-            <input className="tag-input" placeholder="+ tag" value={tagDraft}
-                   onChange={(e) => setTagDraft(e.target.value)}
-                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-                   onBlur={() => tagDraft && addTag()} />
-          )}
-        </div>
+        {!editing && criticality && <span className="meta-pill">{CRIT_LABEL[criticality]}</span>}
+        {(tags.length > 0 || editing) && (
+          <div className="tag-row">
+            {tags.map((t) => (
+              <span key={t} className="tag-pill">
+                {t}{editing && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
+              </span>
+            ))}
+            {editing && (
+              <input className="tag-input" placeholder="+ tag" value={tagDraft}
+                     onChange={(e) => setTagDraft(e.target.value)}
+                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                     onBlur={() => tagDraft && addTag()} />
+            )}
+          </div>
+        )}
       </div>
 
-      <section className={`panel meta-panel ${editingInfo ? 'is-editing' : 'is-collapsed'}`}>
-        <div className="body-head">
-          <h3>App info</h3>
-          {editingInfo
-            ? <button className="primary-btn" onClick={async () => { await save(); setEditingInfo(false); }}>
-                <Save size={12} /> Done
-              </button>
-            : <button className="ghost-btn" onClick={() => setEditingInfo(true)}>
-                <Pencil size={12} /> Edit info
-              </button>}
-        </div>
-
-        {editingInfo ? (
+      <section className="panel">
+        <h3>App info</h3>
+        {editing ? (
           <div className="field-grid">
             <label>Vendor <input value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={() => save({ vendor })} /></label>
             <label>Criticality
@@ -174,7 +171,7 @@ export function AppDetail({ appId }: { appId: string }) {
             {loginNotes && <><dt>Login</dt><dd className="kv-prose">{loginNotes}</dd></>}
           </dl>
         ) : (
-          <div className="empty">No app info yet. Click "Edit info" to add vendor, URL, login notes.</div>
+          <div className="empty">No app info yet. Click the pen above to add vendor, URL, login notes.</div>
         )}
       </section>
 

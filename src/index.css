@@ -289,6 +289,20 @@ input, textarea { font: inherit; color: inherit; }
 .entry-title-input.plain-on-blur:hover { border-bottom-color: var(--line-soft); }
 .entry-title-input.plain-on-blur:focus { border-bottom-color: var(--accent); }
 
+.read-title {
+  font-size: 22px; font-weight: 600; letter-spacing: -0.01em;
+  margin: 0 0 4px; padding: 2px 0; color: var(--text);
+}
+
+.icon-btn.is-accent {
+  background: var(--accent); color: white; border-color: var(--accent);
+}
+.icon-btn.is-accent:hover { filter: brightness(1.1); }
+
+.big-link {
+  font-size: 14px; display: inline-flex; align-items: center; gap: 6px;
+}
+
 /* read-only key-value list, used by AppDetail / EntryView / ContactView */
 .kv-list {
   display: grid; grid-template-columns: minmax(110px, max-content) 1fr;
