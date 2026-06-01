@@ -65,7 +65,7 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
     ],
     content: parseContent(content),
     editable,
-    editorProps: { attributes: { class: 'tiptap-content min-h-[calc(100vh-252px)] outline-none' }, handlePaste: pasteImages().props.handlePaste },
+    editorProps: { attributes: { class: 'tiptap-content outline-none' }, handlePaste: pasteImages().props.handlePaste },
     onUpdate({ editor: instance }) {
       onChange(JSON.stringify(instance.getJSON()));
     },
@@ -161,9 +161,9 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
   ];
 
   return (
-    <div className="surface flex min-h-[calc(100vh-184px)] flex-1 flex-col rounded-lg border">
+    <div className="editor-shell">
       {editable && (
-        <div className="flex flex-wrap gap-1 border-b p-2">
+        <div className="editor-toolbar">
           {toolbar.map(({ icon: Icon, action, active }, index) => (
             <button key={index} type="button" onClick={action} className={cn('icon-button', active && 'bg-[var(--selected)] text-strong')}>
               <Icon className="h-4 w-4" />
@@ -171,15 +171,17 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
           ))}
         </div>
       )}
-      <div ref={shellRef} className="min-h-0 flex-1 p-5" onClick={(event) => {
+      <div ref={shellRef} className="editor-body" onClick={(event) => {
         const anchor = (event.target as HTMLElement).closest('a');
         if (anchor?.getAttribute('href')) void openShell(anchor.getAttribute('href')!);
       }}>
         <EditorContent editor={editor} />
       </div>
-      <div className="border-t px-4 py-2 text-right text-[11px] text-muted">
-        {editor?.storage.characterCount.characters() ?? 0} chars / {editor?.storage.characterCount.words() ?? 0} words
-      </div>
+      {editable && (
+        <div className="editor-footer">
+          {editor?.storage.characterCount.characters() ?? 0} chars / {editor?.storage.characterCount.words() ?? 0} words
+        </div>
+      )}
     </div>
   );
 }

@@ -136,6 +136,33 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
         conn.pragma_update(None, "foreign_keys", "ON")?;
     }
 
+    if version < 11 {
+        let tx = conn.transaction()?;
+        // Old "contacts" and "sitelinks" entries (migrated from the legacy
+        // category enum) don't belong in the new module-style tops. Sitelinks
+        // entries without a URL get moved to Notes; remaining contacts entries
+        // (the contacts module only renders contact records, not entries) move
+        // to Notes too. Untitled empty drafts get deleted outright.
+        tx.execute(
+            "DELETE FROM entries
+              WHERE (title IS NULL OR trim(title) = '' OR title = '(untitled)')
+                AND (content IS NULL OR content = '' OR content = '{}')",
+            [],
+        )?;
+        tx.execute(
+            "UPDATE entries SET top_category = 'notes', folder_id = NULL
+              WHERE top_category = 'contacts'",
+            [],
+        )?;
+        tx.execute(
+            "UPDATE entries SET top_category = 'notes', folder_id = NULL
+              WHERE top_category = 'sitelinks' AND (url IS NULL OR trim(url) = '')",
+            [],
+        )?;
+        tx.pragma_update(None, "user_version", 11)?;
+        tx.commit()?;
+    }
+
     // Seed vendor contacts if the contacts table is empty (fresh install).
     let contact_count: i64 = conn.query_row("SELECT COUNT(*) FROM contacts", [], |r| r.get(0))?;
     if contact_count == 0 {

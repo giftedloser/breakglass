@@ -11,8 +11,12 @@ type Node =
   | { kind: 'entry'; entry: Entry }
   | { kind: 'contact'; contact: Contact };
 
+// Contacts and Site Links are "module" tops — the sidebar shows only their
+// sub-folders, not individual contacts/links. Clicking the top opens a
+// dedicated module page.
+const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks']);
+
 function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
-  // One pass over all data, group into per-top buckets keyed by parent.
   const out = {} as Record<TopCategory, Record<string, Node[]>>;
   for (const t of TOPS) out[t.id] = {};
   const push = (top: TopCategory, key: string, node: Node) => {
@@ -21,8 +25,11 @@ function buildTrees(folders: Folder[], entries: Entry[], contacts: Contact[]) {
     bucket[key].push(node);
   };
   for (const folder of folders) push(folder.top_category, folder.parent_id ?? '__root__', { kind: 'folder', folder });
-  for (const entry of entries) push(entry.top_category, entry.folder_id ?? '__root__', { kind: 'entry', entry });
-  for (const c of contacts) push('contacts', c.folder_id ?? '__root__', { kind: 'contact', contact: c });
+  for (const entry of entries) {
+    if (MODULE_TOPS.has(entry.top_category)) continue; // don't enumerate inside module tops
+    push(entry.top_category, entry.folder_id ?? '__root__', { kind: 'entry', entry });
+  }
+  // contacts are never enumerated as leaves in the sidebar — they live in the Contacts module.
   const cmp = (a: Node, b: Node) => {
     const ord = (n: Node) => (n.kind === 'folder' ? 0 : 1);
     if (ord(a) !== ord(b)) return ord(a) - ord(b);
