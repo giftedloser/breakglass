@@ -132,6 +132,18 @@ pub struct RecentItem {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Attachment {
+    pub id: String,
+    pub entry_id: Option<String>,
+    pub app_id: Option<String>,
+    pub contact_id: Option<String>,
+    pub filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExportData {
     pub version: u32,
     pub exported_at: String,

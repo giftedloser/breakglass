@@ -161,7 +161,7 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
   ];
 
   return (
-    <div className="editor-shell">
+    <div className={`editor-shell ${editable ? 'is-editing' : 'is-reading'}`}>
       {editable && (
         <div className="editor-toolbar">
           {toolbar.map(({ icon: Icon, action, active }, index) => (

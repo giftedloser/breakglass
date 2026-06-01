@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import toast from 'react-hot-toast';
-import { App, AppInput, Contact, ContactInput, Entry, EntryInput, Folder, FolderInput, RecentItem, SearchHit } from '../types';
+import { App, AppInput, Attachment, AttachmentParent, Contact, ContactInput, Entry, EntryInput, Folder, FolderInput, RecentItem, SearchHit } from '../types';
 
 export async function openExternal(url: string | null | undefined) {
   if (!url) { toast.error('No URL set'); return; }
@@ -48,6 +48,16 @@ export const db = {
   touchRecent: (kind: 'entry' | 'contact' | 'app', id: string) =>
     invoke<void>('touch_recent', { kind, id }),
   listRecents: () => invoke<RecentItem[]>('list_recents'),
+
+  // attachments
+  listAttachments: (parentKind: AttachmentParent, parentId: string) =>
+    invoke<Attachment[]>('list_attachments', { parentKind, parentId }),
+  addAttachment: (parentKind: AttachmentParent, parentId: string, filename: string, mimeType: string, dataBase64: string) =>
+    invoke<Attachment>('add_attachment', { parentKind, parentId, filename, mimeType, dataBase64 }),
+  deleteAttachment: (id: string) => invoke<boolean>('delete_attachment', { id }),
+  saveAttachmentTo: (id: string, destPath: string) =>
+    invoke<string>('save_attachment_to', { id, destPath }),
+  readAttachmentB64: (id: string) => invoke<string>('read_attachment_b64', { id }),
 
   // demo / import / export
   seedDemoData: () => invoke<{ ok: boolean }>('seed_demo_data'),

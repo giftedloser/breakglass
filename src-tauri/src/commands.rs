@@ -453,6 +453,91 @@ pub fn list_recents(state: State<Mutex<Connection>>) -> Result<Vec<RecentItem>, 
     rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
 }
 
+// ─────────────── attachments ───────────────
+
+use base64::{engine::general_purpose, Engine as _};
+
+fn parent_col(parent_kind: &str) -> Result<&'static str, String> {
+    match parent_kind {
+        "entry" => Ok("entry_id"),
+        "app" => Ok("app_id"),
+        "contact" => Ok("contact_id"),
+        _ => Err(format!("invalid parent kind: {parent_kind}")),
+    }
+}
+
+#[tauri::command]
+pub fn list_attachments(state: State<Mutex<Connection>>, parent_kind: String, parent_id: String) -> Result<Vec<Attachment>, String> {
+    let col = parent_col(&parent_kind)?;
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let sql = format!(
+        "SELECT id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, created_at
+         FROM attachments WHERE {col} = ?1 ORDER BY filename"
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(params![parent_id], |r| Ok(Attachment {
+        id: r.get(0)?, entry_id: r.get(1)?, app_id: r.get(2)?, contact_id: r.get(3)?,
+        filename: r.get(4)?, mime_type: r.get(5)?, size_bytes: r.get(6)?, created_at: r.get(7)?,
+    })).map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_attachment(
+    state: State<Mutex<Connection>>,
+    parent_kind: String, parent_id: String,
+    filename: String, mime_type: String, data_base64: String,
+) -> Result<Attachment, String> {
+    let col = parent_col(&parent_kind)?;
+    let bytes = general_purpose::STANDARD.decode(data_base64.as_bytes()).map_err(|e| e.to_string())?;
+    if bytes.len() > 50 * 1024 * 1024 {
+        return Err("Attachment exceeds 50 MB limit".into());
+    }
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let id = Uuid::new_v4().to_string();
+    let ts = now();
+    let sql = format!(
+        "INSERT INTO attachments (id, {col}, filename, mime_type, size_bytes, data, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+    );
+    conn.execute(&sql, params![id, parent_id, filename, mime_type, bytes.len() as i64, bytes, ts])
+        .map_err(|e| e.to_string())?;
+    conn.query_row(
+        "SELECT id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, created_at FROM attachments WHERE id = ?1",
+        params![id],
+        |r| Ok(Attachment {
+            id: r.get(0)?, entry_id: r.get(1)?, app_id: r.get(2)?, contact_id: r.get(3)?,
+            filename: r.get(4)?, mime_type: r.get(5)?, size_bytes: r.get(6)?, created_at: r.get(7)?,
+        }),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_attachment(state: State<Mutex<Connection>>, id: String) -> Result<bool, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let n = conn.execute("DELETE FROM attachments WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    Ok(n > 0)
+}
+
+#[tauri::command]
+pub fn save_attachment_to(state: State<Mutex<Connection>>, id: String, dest_path: String) -> Result<String, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let bytes: Vec<u8> = conn.query_row(
+        "SELECT data FROM attachments WHERE id = ?1", params![id], |r| r.get(0)
+    ).map_err(|e| e.to_string())?;
+    std::fs::write(&dest_path, bytes).map_err(|e| e.to_string())?;
+    Ok(dest_path)
+}
+
+#[tauri::command]
+pub fn read_attachment_b64(state: State<Mutex<Connection>>, id: String) -> Result<String, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let bytes: Vec<u8> = conn.query_row(
+        "SELECT data FROM attachments WHERE id = ?1", params![id], |r| r.get(0)
+    ).map_err(|e| e.to_string())?;
+    Ok(general_purpose::STANDARD.encode(&bytes))
+}
+
 // ─────────────── demo data ───────────────
 
 #[tauri::command]
@@ -537,11 +622,13 @@ pub fn seed_demo_data(state: State<Mutex<Connection>>) -> Result<serde_json::Val
              "INFOR PMS backing DB. Restart only with vendor on the line.",
              r#"{"name":"hotel_pms","host":"10.10.20.40"}"#, None, &ts)?;
     mk_entry(&conn, "dbs", Some(&db_snips), None, "snippet", "List active sessions (MSSQL)",
-             "SELECT session_id, login_name, host_name, program_name FROM sys.dm_exec_sessions WHERE is_user_process = 1;",
-             r#"{"engine":"MSSQL"}"#, None, &ts)?;
-    mk_entry(&conn, "dbs", Some(&db_snips), None, "snippet", "Tail recent SQL errors",
-             "SELECT TOP 100 * FROM sys.dm_exec_query_stats ORDER BY last_execution_time DESC;",
-             r#"{"engine":"MSSQL"}"#, None, &ts)?;
+             "",
+             r#"{"engine":"MSSQL","sql":"SELECT session_id, login_name, host_name, program_name\nFROM sys.dm_exec_sessions\nWHERE is_user_process = 1\nORDER BY login_time DESC;"}"#,
+             None, &ts)?;
+    mk_entry(&conn, "dbs", Some(&db_snips), None, "snippet", "Top expensive queries",
+             "",
+             r#"{"engine":"MSSQL","sql":"SELECT TOP 25\n  total_worker_time/execution_count AS avg_cpu,\n  total_elapsed_time/execution_count AS avg_elapsed,\n  execution_count,\n  SUBSTRING(t.text, (s.statement_start_offset/2)+1,\n    ((CASE s.statement_end_offset WHEN -1 THEN DATALENGTH(t.text)\n      ELSE s.statement_end_offset END - s.statement_start_offset)/2)+1) AS query_text\nFROM sys.dm_exec_query_stats s\nCROSS APPLY sys.dm_exec_sql_text(s.sql_handle) t\nORDER BY avg_cpu DESC;"}"#,
+             None, &ts)?;
 
     // Network
     let net_v = mk_folder(&conn, None, "network", "VLANs", &ts)?;
@@ -613,8 +700,9 @@ pub fn seed_demo_data(state: State<Mutex<Connection>>) -> Result<serde_json::Val
 
     // Weekly Reports
     mk_entry(&conn, "weekly", None, None, "report", "Week of 2026-05-25",
-             "Summary: Quiet week, no incidents.\n\nAccomplishments: deployed new switch in MDF; closed 12 helpdesk tickets.\n\nBlockers: still waiting on PO approval for the UPS replacement.\n\nNext steps: schedule the hotel-side firmware update for the locks.",
-             r#"{"week_of":"2026-05-25"}"#, None, &ts)?;
+             "",
+             r#"{"week_of":"2026-05-25","summary":"Quiet week overall. No incidents on the gaming side. One small AD lockout cluster mid-week handled via runbook.","accomplishments":"- Replaced switch in MDF (core-sw02)\n- Closed 12 helpdesk tickets\n- Reviewed and updated emergency runbooks\n- Re-enrolled 4 users in Okta MFA","blockers":"Still waiting on PO approval for the UPS replacement. Finance has it in queue.","next_steps":"- Schedule hotel-side firmware update for the locks (target weekend)\n- Walk the floor with Sarah to map gaming VLAN gaps\n- Inventory pass on spare card readers"}"#,
+             None, &ts)?;
 
     // Site Links
     mk_entry(&conn, "sitelinks", None, None, "generic", "Okta admin",

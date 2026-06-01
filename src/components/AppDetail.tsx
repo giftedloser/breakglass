@@ -4,6 +4,7 @@ import { ExternalLink, Pencil, Plus, Save, Star, Trash2, X } from 'lucide-react'
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
 import { formatRelativeDate } from '../lib/utils';
+import { Attachments } from './Attachments';
 
 const CRIT_LABEL: Record<string, string> = {
   high: 'High criticality',
@@ -176,6 +177,8 @@ export function AppDetail({ appId }: { appId: string }) {
           <div className="empty">No app info yet. Click "Edit info" to add vendor, URL, login notes.</div>
         )}
       </section>
+
+      <Attachments parentKind="app" parentId={app.id} />
 
       <section className="panel">
         <div className="body-head">

@@ -9,6 +9,8 @@ import { defaultKind, KINDS, kindDef, parseProperties, stringifyProperties } fro
 import { formatRelativeDate } from '../lib/utils';
 import { Folder } from '../types';
 import { Editor } from './Editor';
+import { CodeBlock } from './CodeBlock';
+import { Attachments } from './Attachments';
 
 function folderPath(folderId: string | null, folders: Folder[]): Folder[] {
   if (!folderId) return [];
@@ -248,9 +250,20 @@ export function EntryView({ entryId }: { entryId: string }) {
               {fields.map((f) => (
                 <label key={f.key} className={f.wide ? 'wide' : ''}>
                   {f.label}
-                  <input value={props[f.key] ?? ''} placeholder={f.placeholder}
-                         onChange={(e) => updateField(f.key, e.target.value)}
-                         onBlur={saveFields} />
+                  {f.type === 'textarea' || f.type === 'code' ? (
+                    <textarea
+                      className={f.type === 'code' ? 'code-input' : 'notes-area'}
+                      rows={f.type === 'code' ? 10 : 4}
+                      value={props[f.key] ?? ''} placeholder={f.placeholder}
+                      onChange={(e) => updateField(f.key, e.target.value)}
+                      onBlur={saveFields}
+                      spellCheck={f.type === 'code' ? false : undefined}
+                    />
+                  ) : (
+                    <input value={props[f.key] ?? ''} placeholder={f.placeholder}
+                           onChange={(e) => updateField(f.key, e.target.value)}
+                           onBlur={saveFields} />
+                  )}
                 </label>
               ))}
             </div>
@@ -259,19 +272,44 @@ export function EntryView({ entryId }: { entryId: string }) {
               const hasAny = fields.some((f) => props[f.key]?.trim());
               if (!hasAny) return <div className="empty">No fields filled in yet.</div>;
               return (
-                <dl className="kv-list">
-                  {fields.map((f) => props[f.key]?.trim()
-                    ? <Fragment key={f.key}><dt>{f.label}</dt><dd>{props[f.key]}</dd></Fragment>
-                    : null)}
-                </dl>
+                <div className="kv-rich">
+                  {fields.map((f) => {
+                    const val = props[f.key]?.trim();
+                    if (!val) return null;
+                    if (f.type === 'code') {
+                      return (
+                        <Fragment key={f.key}>
+                          <div className="kv-section-label">{f.label}</div>
+                          <CodeBlock code={val} language={f.language ?? 'sql'} />
+                        </Fragment>
+                      );
+                    }
+                    if (f.type === 'textarea') {
+                      return (
+                        <Fragment key={f.key}>
+                          <div className="kv-section-label">{f.label}</div>
+                          <div className="kv-prose-block">{val}</div>
+                        </Fragment>
+                      );
+                    }
+                    return (
+                      <Fragment key={f.key}>
+                        <div className="kv-inline">
+                          <span className="kv-key">{f.label}</span>
+                          <span className="kv-val">{val}</span>
+                        </div>
+                      </Fragment>
+                    );
+                  })}
+                </div>
               );
             })()
           )}
         </section>
       )}
 
-      {!isLinks && (
-        <section className="panel body-panel">
+      {!isLinks && !kindDef(entry.top_category, kind).hideBody && (
+        <section className={`panel body-panel ${editingBody ? 'is-editing-body' : 'is-reading-body'}`}>
           <div className="body-head">
             <h3>Body</h3>
             {editingBody
@@ -285,6 +323,8 @@ export function EntryView({ entryId }: { entryId: string }) {
           <Editor content={content || ''} onChange={(json) => { setContent(json); dirtyRef.current = true; }} editable={editingBody} placeholder="Empty. Click Edit to add content." />
         </section>
       )}
+
+      <Attachments parentKind="entry" parentId={entry.id} />
     </div>
   );
 }

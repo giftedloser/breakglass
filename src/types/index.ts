@@ -133,6 +133,19 @@ export interface RecentItem {
   viewed_at: string;
 }
 
+export interface Attachment {
+  id: string;
+  entry_id: string | null;
+  app_id: string | null;
+  contact_id: string | null;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export type AttachmentParent = 'entry' | 'app' | 'contact';
+
 export type SelectionTarget =
   | { kind: 'home' }
   | { kind: 'pinned' }

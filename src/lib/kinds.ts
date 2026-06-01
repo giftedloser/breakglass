@@ -5,11 +5,15 @@ export interface FieldDef {
   label: string;
   placeholder?: string;
   wide?: boolean;
+  type?: 'text' | 'textarea' | 'code';
+  language?: string;       // when type='code', e.g. 'sql'
+  monospaceRead?: boolean; // in read mode, render as <pre> (good for code/multi-line)
 }
 
 export interface KindDef {
   id: string;
   label: string;
+  hideBody?: boolean;   // hide the rich TipTap body for this kind
   fields: FieldDef[];
 }
 
@@ -30,8 +34,9 @@ export const KINDS: Record<TopCategory, KindDef[]> = {
       { key: 'name', label: 'Name' },
       { key: 'host', label: 'Host' },
     ]},
-    { id: 'snippet', label: 'SQL snippet', fields: [
+    { id: 'snippet', label: 'SQL snippet', hideBody: true, fields: [
       { key: 'engine', label: 'Engine', placeholder: 'PostgreSQL, MSSQL, MySQL, ...' },
+      { key: 'sql', label: 'SQL', wide: true, type: 'code', language: 'sql' },
     ]},
     { id: 'generic', label: 'Other', fields: [] },
   ],
@@ -68,8 +73,12 @@ export const KINDS: Record<TopCategory, KindDef[]> = {
   sitelinks: [{ id: 'generic', label: 'Site Link', fields: [
     { key: 'description', label: 'Description', wide: true },
   ]}],
-  weekly: [{ id: 'report', label: 'Weekly Report', fields: [
+  weekly: [{ id: 'report', label: 'Weekly Report', hideBody: true, fields: [
     { key: 'week_of', label: 'Week of (YYYY-MM-DD)' },
+    { key: 'summary', label: 'Summary', wide: true, type: 'textarea' },
+    { key: 'accomplishments', label: 'Accomplishments', wide: true, type: 'textarea' },
+    { key: 'blockers', label: 'Blockers', wide: true, type: 'textarea' },
+    { key: 'next_steps', label: 'Next steps', wide: true, type: 'textarea' },
   ]}],
 };
 

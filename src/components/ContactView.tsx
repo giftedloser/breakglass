@@ -7,6 +7,7 @@ import { db } from '../lib/invoke';
 import { topLabel } from '../lib/categories';
 import { copyToClipboard, formatRelativeDate } from '../lib/utils';
 import { Folder } from '../types';
+import { Attachments } from './Attachments';
 
 function folderPath(folderId: string | null, folders: Folder[]): Folder[] {
   if (!folderId) return [];
@@ -219,6 +220,8 @@ export function ContactView({ contactId }: { contactId: string }) {
             : <div className="empty">No notes.</div>
         }
       </section>
+
+      <Attachments parentKind="contact" parentId={contact.id} />
     </div>
   );
 }

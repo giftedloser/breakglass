@@ -323,6 +323,78 @@ input, textarea { font: inherit; color: inherit; }
   padding: 4px 0;
 }
 
+/* read-only rich layout used by EntryView's Fields panel when entry has
+   structured textareas / code (e.g. Weekly Reports, SQL snippets). */
+.kv-rich { display: flex; flex-direction: column; gap: 10px; }
+.kv-rich .kv-section-label {
+  font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-dim); font-weight: 600;
+}
+.kv-rich .kv-prose-block {
+  white-space: pre-wrap; color: var(--text); line-height: 1.55;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.kv-rich .kv-prose-block:last-child { border-bottom: 0; }
+.kv-rich .kv-inline { display: flex; gap: 10px; align-items: baseline; }
+.kv-rich .kv-key { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); }
+.kv-rich .kv-val { color: var(--text); }
+
+/* code blocks (SQL snippets) */
+.code-block {
+  background: #0f1419; border: 1px solid var(--line); border-radius: 5px;
+  overflow: hidden; font-size: 12.5px;
+}
+html.light .code-block { background: #fafaf6; }
+.code-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px; background: rgba(0,0,0,0.18); border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 10.5px;
+}
+html.light .code-head { background: rgba(0,0,0,0.04); border-bottom-color: rgba(0,0,0,0.06); }
+.code-lang { color: var(--text-dim); letter-spacing: 0.12em; }
+.code-copy {
+  background: transparent; border: 1px solid transparent; color: var(--text-dim);
+  cursor: pointer; padding: 2px 8px; border-radius: 3px;
+  display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px;
+}
+.code-copy:hover { color: var(--text); background: rgba(255,255,255,0.05); border-color: var(--line); }
+html.light .code-copy:hover { background: rgba(0,0,0,0.04); }
+.code-block pre { margin: 0; padding: 12px 14px; overflow-x: auto; }
+.code-block code {
+  font: 12.5px/1.55 ui-monospace, SFMono-Regular, Consolas, Menlo, monospace;
+  background: transparent; padding: 0; color: #e6e6e6;
+}
+html.light .code-block code { color: #1a1816; }
+
+.code-input {
+  font: 12.5px/1.55 ui-monospace, SFMono-Regular, Consolas, Menlo, monospace !important;
+  background: #0f1419 !important; color: #e6e6e6 !important;
+  border-color: var(--line) !important;
+}
+html.light .code-input { background: #fafaf6 !important; color: #1a1816 !important; }
+
+/* attachments */
+.attachments-panel .body-head { margin-bottom: 8px; }
+.attach-drop {
+  border: 1px dashed transparent; border-radius: 5px; padding: 4px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.attach-drop.is-over { background: var(--accent-soft); border-color: var(--accent); }
+.attach-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.attach-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 4px;
+}
+.attach-row:hover { background: var(--panel-2); }
+.attach-name {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: transparent; border: 0; color: var(--text); cursor: pointer;
+  padding: 0; text-align: left; font-size: 12.5px; min-width: 0;
+}
+.attach-name:hover { color: var(--link); }
+.attach-size { color: var(--text-dim); font-size: 11px; }
+
 .field-select {
   background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
   padding: 6px 10px; outline: none; color: var(--text); font: inherit;
@@ -483,6 +555,10 @@ input, textarea { font: inherit; color: inherit; }
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
   display: flex; flex-direction: column;
 }
+.editor-shell.is-reading {
+  background: transparent; border: 0;
+}
+.editor-shell.is-reading .editor-body { padding: 4px 0 0; }
 .editor-toolbar {
   display: flex; flex-wrap: wrap; gap: 2px; padding: 6px 8px;
   border-bottom: 1px solid var(--line); background: var(--panel);
