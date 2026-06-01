@@ -75,10 +75,6 @@ export const KINDS: Record<TopCategory, KindDef[]> = {
   ]}],
   weekly: [{ id: 'report', label: 'Weekly Report', hideBody: true, fields: [
     { key: 'week_of', label: 'Week of (YYYY-MM-DD)' },
-    { key: 'summary', label: 'Summary', wide: true, type: 'textarea' },
-    { key: 'accomplishments', label: 'Accomplishments', wide: true, type: 'textarea' },
-    { key: 'blockers', label: 'Blockers', wide: true, type: 'textarea' },
-    { key: 'next_steps', label: 'Next steps', wide: true, type: 'textarea' },
   ]}],
 };
 

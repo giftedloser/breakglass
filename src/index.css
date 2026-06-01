@@ -303,6 +303,66 @@ input, textarea { font: inherit; color: inherit; }
   font-size: 14px; display: inline-flex; align-items: center; gap: 6px;
 }
 
+/* App detail compact read mode */
+.app-meta-strip { gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+.app-meta-strip .meta-pill {
+  font-size: 11px; padding: 2px 8px;
+}
+.app-meta-strip .meta-pill.crit-high { color: #d65b3b; border-color: rgba(214,91,59,0.4); background: rgba(214,91,59,0.08); }
+.app-meta-strip .meta-pill.crit-medium { color: #c89a4a; border-color: rgba(200,154,74,0.4); background: rgba(200,154,74,0.08); }
+.app-meta-strip .meta-pill.crit-low { color: var(--text-muted); }
+.meta-link {
+  font-size: 12px; color: var(--link); cursor: pointer; display: inline-flex;
+  align-items: center; gap: 4px; text-decoration: underline; text-decoration-color: rgba(122,167,214,0.3);
+}
+.meta-link:hover { color: var(--accent); }
+.login-flavor {
+  color: var(--text-muted); font-size: 13px; line-height: 1.55;
+  white-space: pre-wrap; padding: 6px 0 14px;
+  border-bottom: 1px solid var(--line-soft); margin-bottom: 14px;
+}
+
+/* Weekly Report sections */
+.weekly-panel { padding: 0; background: transparent; border: 0; }
+.wr-sections { display: flex; flex-direction: column; gap: 14px; }
+.wr-sections.is-editing { gap: 10px; }
+.wr-section {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 12px 16px;
+}
+.wr-section-title {
+  margin: 0 0 6px; font-size: 14px; font-weight: 600;
+  letter-spacing: -0.01em; color: var(--text);
+}
+.wr-section-body {
+  white-space: pre-wrap; color: var(--text); line-height: 1.55; font-size: 13px;
+}
+.wr-section-empty { padding: 4px 0; font-style: italic; }
+.wr-section.editable { padding: 10px 12px; }
+.wr-section-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.wr-section-title-input {
+  flex: 1; background: transparent; border: 0; border-bottom: 1px solid var(--line-soft);
+  color: var(--text); font: 600 14px/1.4 inherit;
+  padding: 3px 0; outline: none;
+}
+.wr-section-title-input:focus { border-bottom-color: var(--accent); }
+.wr-section-textarea {
+  width: 100%; min-height: 80px;
+}
+.wr-add-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 0 2px;
+}
+.wr-suggestions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.wr-suggest-label { font-size: 11px; color: var(--text-dim); }
+.wr-suggest-chip {
+  background: transparent; border: 1px dashed var(--line); color: var(--text-muted);
+  font-size: 11px; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+}
+.wr-suggest-chip:hover { color: var(--text); border-style: solid; background: var(--panel-2); }
+
 /* read-only key-value list, used by AppDetail / EntryView / ContactView */
 .kv-list {
   display: grid; grid-template-columns: minmax(110px, max-content) 1fr;

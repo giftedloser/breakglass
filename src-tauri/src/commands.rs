@@ -701,7 +701,7 @@ pub fn seed_demo_data(state: State<Mutex<Connection>>) -> Result<serde_json::Val
     // Weekly Reports
     mk_entry(&conn, "weekly", None, None, "report", "Week of 2026-05-25",
              "",
-             r#"{"week_of":"2026-05-25","summary":"Quiet week overall. No incidents on the gaming side. One small AD lockout cluster mid-week handled via runbook.","accomplishments":"- Replaced switch in MDF (core-sw02)\n- Closed 12 helpdesk tickets\n- Reviewed and updated emergency runbooks\n- Re-enrolled 4 users in Okta MFA","blockers":"Still waiting on PO approval for the UPS replacement. Finance has it in queue.","next_steps":"- Schedule hotel-side firmware update for the locks (target weekend)\n- Walk the floor with Sarah to map gaming VLAN gaps\n- Inventory pass on spare card readers"}"#,
+             r#"{"week_of":"2026-05-25","sections":"[{\"id\":\"s1\",\"title\":\"Solutions Created / Discovered\",\"content\":\"Documented EZPay MFA reset flow as SD#4421. Linked KB and saved ~10 min/ticket.\"},{\"id\":\"s2\",\"title\":\"Logs & Problem-Solving\",\"content\":\"Tracked down intermittent slot reboots to a flaky PSU on rack G3 — swapped Tue. T#9912.\"},{\"id\":\"s3\",\"title\":\"Escalations\",\"content\":\"Escalated INFOR check-in slowness to vendor T#9899 after collecting query plans and timings. Vendor confirmed missing index.\"},{\"id\":\"s4\",\"title\":\"Project Ownership\",\"content\":\"UPS replacement PO still pending finance. Walk-through with Sarah scheduled Friday.\"}]"}"#,
              None, &ts)?;
 
     // Site Links

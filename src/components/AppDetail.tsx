@@ -31,7 +31,6 @@ export function AppDetail({ appId }: { appId: string }) {
     if (!app) return;
     setName(app.name); setVendor(app.vendor); setUrl(app.url); setLoginNotes(app.login_notes);
     setCriticality(app.criticality); setTags(app.tags);
-    // Start in edit mode only for brand-new apps with no metadata.
     const noMeta = !(app.vendor || app.url || app.login_notes || app.criticality);
     setEditing(noMeta);
   }, [appId]);
@@ -55,9 +54,7 @@ export function AppDetail({ appId }: { appId: string }) {
   const remove = async () => {
     if (!app) return;
     const count = entries.filter((e) => e.app_id === app.id).length;
-    const msg = count > 0
-      ? `Delete app "${app.name}"? It has ${count} entries.`
-      : `Delete app "${app.name}"?`;
+    const msg = count > 0 ? `Delete app "${app.name}"? It has ${count} entries.` : `Delete app "${app.name}"?`;
     if (!window.confirm(msg)) return;
     const cascade = count > 0 ? window.confirm(`Also delete the ${count} entries under this app?\n\nOK = delete entries too\nCancel = keep them as orphans`) : false;
     try {
@@ -99,8 +96,6 @@ export function AppDetail({ appId }: { appId: string }) {
     .filter((e) => e.app_id === app.id)
     .sort((a, b) => a.title.localeCompare(b.title));
 
-  const hasMeta = !!(vendor || url || loginNotes || criticality);
-
   return (
     <div className="content-pane">
       <div className="app-detail-header">
@@ -118,12 +113,20 @@ export function AppDetail({ appId }: { appId: string }) {
         </div>
       </div>
 
-      <div className="entry-meta">
+      {/* Read-mode compact meta strip. Inline pills + tags. App Info panel
+          only shown while editing. */}
+      <div className="entry-meta app-meta-strip">
         <span className="meta-when">
           Updated {formatRelativeDate(app.updated_at)}
           {savedFlash && <span className="saved-flash"> · saved</span>}
         </span>
-        {!editing && criticality && <span className="meta-pill">{CRIT_LABEL[criticality]}</span>}
+        {!editing && vendor && <span className="meta-pill">{vendor}</span>}
+        {!editing && criticality && <span className={`meta-pill crit-${criticality}`}>{CRIT_LABEL[criticality]}</span>}
+        {!editing && url && (
+          <a className="meta-link" onClick={() => openExternal(url)}>
+            <ExternalLink size={11} /> {url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+          </a>
+        )}
         {(tags.length > 0 || editing) && (
           <div className="tag-row">
             {tags.map((t) => (
@@ -141,9 +144,13 @@ export function AppDetail({ appId }: { appId: string }) {
         )}
       </div>
 
-      <section className="panel">
-        <h3>App info</h3>
-        {editing ? (
+      {!editing && loginNotes && (
+        <div className="login-flavor">{loginNotes}</div>
+      )}
+
+      {editing && (
+        <section className="panel">
+          <h3>App info</h3>
           <div className="field-grid">
             <label>Vendor <input value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={() => save({ vendor })} /></label>
             <label>Criticality
@@ -164,18 +171,8 @@ export function AppDetail({ appId }: { appId: string }) {
               <textarea className="notes-area" rows={3} value={loginNotes} onChange={(e) => setLoginNotes(e.target.value)} onBlur={() => save({ login_notes: loginNotes })} placeholder="SSO via Okta. Break-glass account in Bitwarden as 'app-admin'." />
             </label>
           </div>
-        ) : hasMeta ? (
-          <dl className="kv-list">
-            {vendor && <><dt>Vendor</dt><dd>{vendor}</dd></>}
-            {url && <><dt>URL</dt><dd><a className="link" onClick={() => openExternal(url)}>{url}</a></dd></>}
-            {loginNotes && <><dt>Login</dt><dd className="kv-prose">{loginNotes}</dd></>}
-          </dl>
-        ) : (
-          <div className="empty">No app info yet. Click the pen above to add vendor, URL, login notes.</div>
-        )}
-      </section>
-
-      <Attachments parentKind="app" parentId={app.id} />
+        </section>
+      )}
 
       <section className="panel">
         <div className="body-head">
@@ -195,6 +192,8 @@ export function AppDetail({ appId }: { appId: string }) {
             </ul>
           )}
       </section>
+
+      <Attachments parentKind="app" parentId={app.id} />
     </div>
   );
 }

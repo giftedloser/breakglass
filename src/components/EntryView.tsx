@@ -11,6 +11,28 @@ import { Folder } from '../types';
 import { Editor } from './Editor';
 import { CodeBlock } from './CodeBlock';
 import { Attachments } from './Attachments';
+import { ReportSection, WeeklySections } from './WeeklySections';
+
+// Reads sections out of an entry's raw properties JSON. Sections can be
+// stored either as a nested JSON array under `sections` or as a stringified
+// array (we accept both for forward compatibility).
+function parseSections(raw: string | null | undefined): ReportSection[] {
+  if (!raw) return [];
+  try {
+    const obj = JSON.parse(raw) as { sections?: unknown };
+    const arr = typeof obj.sections === 'string'
+      ? JSON.parse(obj.sections)
+      : obj.sections;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((s: unknown): s is { id?: unknown; title?: unknown; content?: unknown } => !!s && typeof s === 'object')
+      .map((s) => ({
+        id: typeof s.id === 'string' && s.id ? s.id : Math.random().toString(36).slice(2, 10),
+        title: String(s.title ?? ''),
+        content: String(s.content ?? ''),
+      }));
+  } catch { return []; }
+}
 
 function folderPath(folderId: string | null, folders: Folder[]): Folder[] {
   if (!folderId) return [];
@@ -34,6 +56,7 @@ export function EntryView({ entryId }: { entryId: string }) {
   const [content, setContent] = useState(entry?.content ?? '');
   const [kind, setKind] = useState<string>(entry?.kind ?? defaultKind(entry?.top_category ?? 'notes'));
   const [props, setProps] = useState<Record<string, string>>(parseProperties(entry?.properties));
+  const [sections, setSectionsState] = useState<ReportSection[]>(parseSections(entry?.properties));
   const [editing, setEditing] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
@@ -50,6 +73,7 @@ export function EntryView({ entryId }: { entryId: string }) {
     setKind(entry.kind ?? defaultKind(entry.top_category));
     const initProps = parseProperties(entry.properties);
     setProps(initProps);
+    setSectionsState(parseSections(entry.properties));
     // Auto-open edit only when this entry has literally no content yet
     // (fresh from "+ New entry"). Otherwise default to read mode.
     const fieldList = kindDef(entry.top_category, entry.kind).fields;
@@ -64,9 +88,16 @@ export function EntryView({ entryId }: { entryId: string }) {
   const save = async (overrides: Partial<{
     title: string; tags: string[]; url: string | null; content: string;
     is_favorite: boolean; kind: string; properties: Record<string, string>;
+    sections: ReportSection[];
   }> = {}) => {
     if (!entry) return;
-    const propsToSave = overrides.properties ?? props;
+    const propsToSave = { ...(overrides.properties ?? props) };
+    const sectionsToSave = overrides.sections ?? sections;
+    // Embed sections array (as a string) inside the properties JSON so it
+    // round-trips through parseProperties without being coerced.
+    if (entry.top_category === 'weekly') {
+      propsToSave.sections = JSON.stringify(sectionsToSave);
+    }
     try {
       const saved = await db.saveEntry({
         id: entry.id,
@@ -163,6 +194,12 @@ export function EntryView({ entryId }: { entryId: string }) {
   const fields = kindDef(entry.top_category, kind).fields;
   const hideBody = kindDef(entry.top_category, kind).hideBody;
   const updateField = (key: string, value: string) => setProps((p) => ({ ...p, [key]: value }));
+  const isWeekly = entry.top_category === 'weekly';
+  const setSections = (next: ReportSection[]) => {
+    setSectionsState(next);
+    dirtyRef.current = true;
+    void save({ sections: next });
+  };
 
   return (
     <div className="content-pane">
@@ -325,7 +362,13 @@ export function EntryView({ entryId }: { entryId: string }) {
         </section>
       )}
 
-      {!isLinks && !hideBody && (
+      {isWeekly && (
+        <section className="panel weekly-panel">
+          <WeeklySections sections={sections} editing={editing} onChange={setSections} />
+        </section>
+      )}
+
+      {!isLinks && !hideBody && !isWeekly && (
         <section className={`panel body-panel ${editing ? 'is-editing-body' : 'is-reading-body'}`}>
           <h3>Body</h3>
           <Editor content={content || ''} onChange={(json) => { setContent(json); dirtyRef.current = true; }} editable={editing} placeholder="Empty. Click the pen above to add content." />

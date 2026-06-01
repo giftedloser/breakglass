@@ -1,6 +1,6 @@
 {
   "productName": "BreakGlass",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "identifier": "com.breakglass.app",
   "build": {
     "beforeDevCommand": "npm run dev",
