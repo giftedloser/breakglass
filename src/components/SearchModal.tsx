@@ -1,61 +1,96 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, Search, X } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { db } from '../lib/invoke';
-import { getCategoryMeta } from '../lib/categories';
-import { formatRelativeDate } from '../lib/utils';
-import { SearchResult } from '../types';
+import { FileText, FolderClosed, Phone, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { db } from '../lib/invoke';
+import { SearchHit } from '../types';
+import { topLabel } from '../lib/categories';
 
 export function SearchModal() {
-  const { dispatch } = useApp();
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState(0);
+  const { dispatch, selectEntry, selectContact, selectFolder } = useApp();
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
-  useEffect(() => {
-    const handle = window.setTimeout(async () => {
-      if (!query.trim()) return setResults([]);
-      try {
-        setLoading(true);
-        setResults(await db.searchEntries(query));
-        setSelected(0);
-      } catch (error) { toast.error(String(error)); } finally { setLoading(false); }
-    }, 150);
-    return () => window.clearTimeout(handle);
-  }, [query]);
 
-  const grouped = useMemo(() => results.reduce<Record<string, SearchResult[]>>((acc, item) => {
-    (acc[item.category] ??= []).push(item);
-    return acc;
-  }, {}), [results]);
-  const flat = Object.values(grouped).flat();
-  const open = (result: SearchResult) => {
-    dispatch({ type: 'SET_VIEW', view: result.category });
-    dispatch({ type: 'SELECT_ENTRY', id: result.id });
-    dispatch({ type: 'TOGGLE_SEARCH', value: false });
+  useEffect(() => {
+    if (!q.trim()) { setHits([]); return; }
+    let alive = true;
+    const t = window.setTimeout(async () => {
+      try {
+        const res = await db.searchAll(q);
+        if (alive) {
+          const lower = q.toLowerCase();
+          res.sort((a, b) => {
+            const ord = (h: SearchHit) => h.kind === 'folder' ? 0 : h.kind === 'entry' ? 1 : 2;
+            if (ord(a) !== ord(b)) return ord(a) - ord(b);
+            const ax = a.title.toLowerCase() === lower ? 0 : 1;
+            const bx = b.title.toLowerCase() === lower ? 0 : 1;
+            return ax - bx;
+          });
+          setHits(res);
+          setActive(0);
+        }
+      } catch { /* ignore */ }
+    }, 130);
+    return () => { alive = false; window.clearTimeout(t); };
+  }, [q]);
+
+  const grouped = useMemo(() => {
+    const out: Record<string, SearchHit[]> = { folder: [], entry: [], contact: [] };
+    for (const h of hits) out[h.kind].push(h);
+    return out;
+  }, [hits]);
+
+  const flat = useMemo(() => [...grouped.folder, ...grouped.entry, ...grouped.contact], [grouped]);
+
+  const close = () => dispatch({ type: 'TOGGLE_SEARCH', value: false });
+
+  const choose = (h: SearchHit) => {
+    if (h.kind === 'folder') selectFolder(h.id);
+    if (h.kind === 'entry') void selectEntry(h.id);
+    if (h.kind === 'contact') void selectContact(h.id);
+    close();
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(flat.length - 1, a + 1)); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
+    if (e.key === 'Enter')     { e.preventDefault(); if (flat[active]) choose(flat[active]); }
+  };
+
+  const renderHit = (h: SearchHit) => {
+    const isActive = flat[active]?.kind === h.kind && flat[active]?.id === h.id;
+    const Icon = h.kind === 'folder' ? FolderClosed : h.kind === 'contact' ? Phone : FileText;
+    return (
+      <li key={`${h.kind}-${h.id}`} className={`search-hit ${isActive ? 'is-active' : ''}`}
+          onClick={() => choose(h)} onMouseEnter={() => setActive(flat.indexOf(h))}>
+        <Icon size={13} />
+        <div className="hit-body">
+          <div className="hit-title">{h.title}</div>
+          {h.snippet && <div className="hit-snippet">{h.snippet}</div>}
+        </div>
+        <span className="hit-tag">{topLabel(h.top_category)}</span>
+      </li>
+    );
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 p-6 backdrop-blur-sm" onKeyDown={(e) => {
-      if (e.key === 'Escape') dispatch({ type: 'TOGGLE_SEARCH', value: false });
-      if (e.key === 'ArrowDown') setSelected((v) => Math.min(v + 1, Math.max(flat.length - 1, 0)));
-      if (e.key === 'ArrowUp') setSelected((v) => Math.max(v - 1, 0));
-      if (e.key === 'Enter' && flat[selected]) open(flat[selected]);
-    }}>
-      <div className="surface-strong mx-auto mt-16 w-full max-w-2xl rounded-xl border shadow-2xl">
-        <div className="flex items-center gap-3 border-b px-4 py-3"><Search className="h-5 w-5 text-muted" /><input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search runbooks, tags, notes..." className="flex-1 bg-transparent text-lg text-strong outline-none" />{loading && <Loader2 className="h-4 w-4 animate-spin text-muted" />}<button className="icon-button" onClick={() => dispatch({ type: 'TOGGLE_SEARCH', value: false })}><X className="h-5 w-5" /></button></div>
-        <div className="max-h-[60vh] overflow-y-auto p-2">
-          {flat.length === 0 ? <div className="p-8 text-center text-muted">{query ? 'No results' : 'Type to search your emergency reference.'}</div> : Object.entries(grouped).map(([category, items]) => {
-            const meta = getCategoryMeta(category as SearchResult['category']);
-            return <div key={category}><div className="px-2 py-2 text-xs font-semibold uppercase text-muted">{meta.label}</div>{items.map((item) => {
-              const index = flat.findIndex((r) => r.id === item.id);
-              return <button key={item.id} onMouseEnter={() => setSelected(index)} onClick={() => open(item)} className={`entry-card w-full border-l-4 ${meta.tw} p-3 text-left ${selected === index ? 'entry-card-selected' : ''}`}><div className="flex justify-between gap-4"><span className="font-medium text-strong">{item.title}</span><span className="text-xs text-muted">{formatRelativeDate(item.updated_at)}</span></div><p className="mt-1 text-sm text-muted">{item.snippet}</p></button>;
-            })}</div>;
-          })}
+    <div className="search-overlay" onClick={close}>
+      <div className="search-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="search-input-row">
+          <Search size={14} />
+          <input ref={inputRef} value={q} placeholder="Search folders, entries, contacts..." onChange={(e) => setQ(e.target.value)} onKeyDown={onKey} />
+          <button className="search-esc" onClick={close}>esc</button>
+        </div>
+        <div className="search-results">
+          {!q.trim() && <div className="empty">Start typing.</div>}
+          {q.trim() && hits.length === 0 && <div className="empty">No matches.</div>}
+          {grouped.folder.length > 0 && <><div className="search-section">Folders</div><ul>{grouped.folder.map(renderHit)}</ul></>}
+          {grouped.entry.length > 0 && <><div className="search-section">Entries</div><ul>{grouped.entry.map(renderHit)}</ul></>}
+          {grouped.contact.length > 0 && <><div className="search-section">Contacts</div><ul>{grouped.contact.map(renderHit)}</ul></>}
         </div>
       </div>
     </div>

@@ -1,0 +1,164 @@
+import { useEffect, useState, useMemo } from 'react';
+import toast from 'react-hot-toast';
+import { Copy, Star, Trash2, X } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { db } from '../lib/invoke';
+import { topLabel } from '../lib/categories';
+import { copyToClipboard, formatRelativeDate } from '../lib/utils';
+import { Folder } from '../types';
+
+function folderPath(folderId: string | null, folders: Folder[]): Folder[] {
+  if (!folderId) return [];
+  const map = new Map(folders.map((f) => [f.id, f]));
+  const path: Folder[] = [];
+  let cur = map.get(folderId);
+  while (cur) {
+    path.unshift(cur);
+    cur = cur.parent_id ? map.get(cur.parent_id) : undefined;
+  }
+  return path;
+}
+
+export function ContactView({ contactId }: { contactId: string }) {
+  const { contacts, folders, dispatch, selectFolder, selectTop, goHome } = useApp();
+  const contact = contacts.find((c) => c.id === contactId);
+
+  const [name, setName] = useState(contact?.name ?? '');
+  const [role, setRole] = useState(contact?.role ?? '');
+  const [company, setCompany] = useState(contact?.company ?? '');
+  const [phone, setPhone] = useState(contact?.phone ?? '');
+  const [email, setEmail] = useState(contact?.email ?? '');
+  const [notes, setNotes] = useState(contact?.notes ?? '');
+  const [tags, setTags] = useState<string[]>(contact?.tags ?? []);
+  const [tagDraft, setTagDraft] = useState('');
+
+  useEffect(() => {
+    if (!contact) return;
+    setName(contact.name);
+    setRole(contact.role);
+    setCompany(contact.company);
+    setPhone(contact.phone);
+    setEmail(contact.email);
+    setNotes(contact.notes);
+    setTags(contact.tags);
+  }, [contactId]);
+
+  const save = async (overrides: Partial<{ name: string; role: string; company: string; phone: string; email: string; notes: string; tags: string[]; is_favorite: boolean }> = {}) => {
+    if (!contact) return;
+    try {
+      const saved = await db.saveContact({
+        id: contact.id, folder_id: contact.folder_id,
+        name: overrides.name ?? name, role: overrides.role ?? role, company: overrides.company ?? company,
+        phone: overrides.phone ?? phone, email: overrides.email ?? email, notes: overrides.notes ?? notes,
+        tags: overrides.tags ?? tags, is_favorite: overrides.is_favorite ?? contact.is_favorite,
+      });
+      dispatch({ type: 'UPSERT_CONTACT', contact: saved });
+    } catch (err) { toast.error(String(err)); }
+  };
+
+  const togglePin = async () => contact && save({ is_favorite: !contact.is_favorite });
+
+  const remove = async () => {
+    if (!contact) return;
+    if (!window.confirm(`Delete contact "${contact.name}"?`)) return;
+    try {
+      await db.deleteContact(contact.id);
+      dispatch({ type: 'REMOVE_CONTACT', id: contact.id });
+    } catch (err) { toast.error(String(err)); }
+  };
+
+  const addTag = () => {
+    const t = tagDraft.trim().toLowerCase();
+    if (!t || tags.includes(t)) { setTagDraft(''); return; }
+    const next = [...tags, t];
+    setTags(next);
+    setTagDraft('');
+    void save({ tags: next });
+  };
+
+  const removeTag = (t: string) => {
+    const next = tags.filter((x) => x !== t);
+    setTags(next);
+    void save({ tags: next });
+  };
+
+  const path = useMemo(() => folderPath(contact?.folder_id ?? null, folders), [contact?.folder_id, folders]);
+
+  if (!contact) return <div className="content-pane"><div className="empty">Contact not found.</div></div>;
+
+  const doCopy = async (val: string, label: string) => {
+    if (!val) return;
+    await copyToClipboard(val);
+    toast.success(`${label} copied`);
+  };
+
+  return (
+    <div className="content-pane">
+      <header className="content-header">
+        <div className="crumbs">
+          <button className="crumb-link" onClick={goHome}>Home</button>
+          <span className="crumb-sep">/</span>
+          <button className="crumb-link" onClick={() => selectTop('contacts')}>{topLabel('contacts')}</button>
+          {path.map((p) => (
+            <span key={p.id}>
+              <span className="crumb-sep">/</span>
+              <button className="crumb-link" onClick={() => selectFolder(p.id)}>{p.name}</button>
+            </span>
+          ))}
+          <span className="crumb-sep">/</span>
+          <b>{contact.name || '(unnamed)'}</b>
+        </div>
+        <div className="header-actions">
+          <button className="icon-btn" onClick={togglePin} title={contact.is_favorite ? 'Unpin' : 'Pin'}>
+            <Star size={14} className={contact.is_favorite ? 'star-mark filled' : ''} />
+          </button>
+          <button className="icon-btn danger" onClick={remove} title="Delete contact"><Trash2 size={14} /></button>
+        </div>
+      </header>
+
+      <div className="entry-title-row">
+        <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
+      </div>
+
+      <div className="entry-meta">
+        <span className="meta-when">Updated {formatRelativeDate(contact.updated_at)}</span>
+        <div className="tag-row">
+          {tags.map((t) => (
+            <span key={t} className="tag-pill">
+              {t}<button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>
+            </span>
+          ))}
+          <input className="tag-input" placeholder="+ tag" value={tagDraft}
+                 onChange={(e) => setTagDraft(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                 onBlur={() => tagDraft && addTag()} />
+        </div>
+      </div>
+
+      <section className="panel">
+        <h3>Details</h3>
+        <div className="field-grid">
+          <label>Role <input value={role} onChange={(e) => setRole(e.target.value)} onBlur={() => save({ role })} /></label>
+          <label>Company <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={() => save({ company })} /></label>
+          <label>Phone
+            <div className="copy-field">
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => save({ phone })} />
+              <button className="copy-btn" onClick={() => doCopy(phone, 'Phone')}><Copy size={12} /></button>
+            </div>
+          </label>
+          <label>Email
+            <div className="copy-field">
+              <input value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => save({ email })} />
+              <button className="copy-btn" onClick={() => doCopy(email, 'Email')}><Copy size={12} /></button>
+            </div>
+          </label>
+        </div>
+      </section>
+
+      <section className="panel">
+        <h3>Notes</h3>
+        <textarea className="notes-area" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => save({ notes })} placeholder="Any extra notes..." />
+      </section>
+    </div>
+  );
+}

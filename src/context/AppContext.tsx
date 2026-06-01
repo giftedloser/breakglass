@@ -1,141 +1,196 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useReducer } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import toast from 'react-hot-toast';
-import { CategoryCount, Contact, Entry, SidebarView } from '../types';
+import { Contact, Entry, Folder, RecentItem, SelectionTarget, TopCategory } from '../types';
 import { db } from '../lib/invoke';
 
 interface AppState {
+  folders: Folder[];
   entries: Entry[];
   contacts: Contact[];
-  categoryCounts: CategoryCount[];
-  selectedView: SidebarView;
-  selectedEntryId: string | null;
-  selectedContactId: string | null;
-  isLoading: boolean;
+  recents: RecentItem[];
+  selection: SelectionTarget;
+  expanded: Record<string, boolean>; // folder/top ids that are open in the sidebar
   searchOpen: boolean;
-  exportDialogOpen: boolean;
-  navCollapsed: boolean;
-  listCollapsed: boolean;
-  activeTag: string | null;
+  exportOpen: boolean;
   theme: 'dark' | 'light';
+  isLoading: boolean;
 }
 
 type Action =
-  | { type: 'SET_VIEW'; view: SidebarView }
-  | { type: 'SET_ENTRIES'; entries: Entry[] }
-  | { type: 'SET_CONTACTS'; contacts: Contact[] }
-  | { type: 'SET_COUNTS'; counts: CategoryCount[] }
-  | { type: 'SELECT_ENTRY'; id: string | null }
-  | { type: 'SELECT_CONTACT'; id: string | null }
-  | { type: 'SET_LOADING'; value: boolean }
+  | { type: 'SET_DATA'; folders: Folder[]; entries: Entry[]; contacts: Contact[]; recents: RecentItem[] }
+  | { type: 'SET_RECENTS'; recents: RecentItem[] }
+  | { type: 'SELECT'; target: SelectionTarget }
+  | { type: 'TOGGLE_EXPANDED'; id: string; value?: boolean }
+  | { type: 'EXPAND_PATH'; ids: string[] }
   | { type: 'TOGGLE_SEARCH'; value?: boolean }
-  | { type: 'TOGGLE_EXPORT_DIALOG'; value?: boolean }
-  | { type: 'TOGGLE_NAV'; value?: boolean }
-  | { type: 'TOGGLE_LIST'; value?: boolean }
-  | { type: 'SET_TAG_FILTER'; tag: string | null }
+  | { type: 'TOGGLE_EXPORT'; value?: boolean }
   | { type: 'TOGGLE_THEME' }
-  | { type: 'UPDATE_ENTRY'; entry: Entry }
+  | { type: 'SET_LOADING'; value: boolean }
+  | { type: 'UPSERT_FOLDER'; folder: Folder }
+  | { type: 'REMOVE_FOLDER'; id: string }
+  | { type: 'UPSERT_ENTRY'; entry: Entry }
   | { type: 'REMOVE_ENTRY'; id: string }
-  | { type: 'UPDATE_CONTACT'; contact: Contact }
+  | { type: 'UPSERT_CONTACT'; contact: Contact }
   | { type: 'REMOVE_CONTACT'; id: string };
 
-const initialState: AppState = {
+const initial: AppState = {
+  folders: [],
   entries: [],
   contacts: [],
-  categoryCounts: [],
-  selectedView: 'all',
-  selectedEntryId: null,
-  selectedContactId: null,
-  isLoading: true,
+  recents: [],
+  selection: { kind: 'home' },
+  expanded: JSON.parse(localStorage.getItem('bg-expanded') || '{}'),
   searchOpen: false,
-  exportDialogOpen: false,
-  navCollapsed: localStorage.getItem('breakglass-nav-collapsed') === 'true',
-  listCollapsed: localStorage.getItem('breakglass-list-collapsed') === 'true',
-  activeTag: null,
-  theme: (localStorage.getItem('breakglass-theme') as 'dark' | 'light') || 'dark',
+  exportOpen: false,
+  theme: (localStorage.getItem('bg-theme') as 'dark' | 'light') || 'dark',
+  isLoading: true,
 };
 
-function reducer(state: AppState, action: Action): AppState {
-  switch (action.type) {
-    case 'SET_VIEW':
-      return { ...state, selectedView: action.view, selectedEntryId: null, selectedContactId: null };
-    case 'SET_ENTRIES':
-      return { ...state, entries: action.entries };
-    case 'SET_CONTACTS':
-      return { ...state, contacts: action.contacts };
-    case 'SET_COUNTS':
-      return { ...state, categoryCounts: action.counts };
-    case 'SELECT_ENTRY':
-      return { ...state, selectedEntryId: action.id, selectedContactId: null };
-    case 'SELECT_CONTACT':
-      return { ...state, selectedContactId: action.id, selectedEntryId: null };
-    case 'SET_LOADING':
-      return { ...state, isLoading: action.value };
+function reducer(s: AppState, a: Action): AppState {
+  switch (a.type) {
+    case 'SET_DATA':
+      return { ...s, folders: a.folders, entries: a.entries, contacts: a.contacts, recents: a.recents };
+    case 'SET_RECENTS':
+      return { ...s, recents: a.recents };
+    case 'SELECT':
+      return { ...s, selection: a.target };
+    case 'TOGGLE_EXPANDED': {
+      const next = { ...s.expanded, [a.id]: a.value ?? !s.expanded[a.id] };
+      localStorage.setItem('bg-expanded', JSON.stringify(next));
+      return { ...s, expanded: next };
+    }
+    case 'EXPAND_PATH': {
+      const next = { ...s.expanded };
+      for (const id of a.ids) next[id] = true;
+      localStorage.setItem('bg-expanded', JSON.stringify(next));
+      return { ...s, expanded: next };
+    }
     case 'TOGGLE_SEARCH':
-      return { ...state, searchOpen: action.value ?? !state.searchOpen };
-    case 'TOGGLE_EXPORT_DIALOG':
-      return { ...state, exportDialogOpen: action.value ?? !state.exportDialogOpen };
-    case 'TOGGLE_NAV': {
-      const navCollapsed = action.value ?? !state.navCollapsed;
-      localStorage.setItem('breakglass-nav-collapsed', String(navCollapsed));
-      return { ...state, navCollapsed };
-    }
-    case 'TOGGLE_LIST': {
-      const listCollapsed = action.value ?? !state.listCollapsed;
-      localStorage.setItem('breakglass-list-collapsed', String(listCollapsed));
-      return { ...state, listCollapsed };
-    }
-    case 'SET_TAG_FILTER':
-      return { ...state, activeTag: action.tag };
+      return { ...s, searchOpen: a.value ?? !s.searchOpen };
+    case 'TOGGLE_EXPORT':
+      return { ...s, exportOpen: a.value ?? !s.exportOpen };
     case 'TOGGLE_THEME': {
-      const theme = state.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('breakglass-theme', theme);
-      document.documentElement.classList.toggle('dark', theme !== 'light');
-      return { ...state, theme };
+      const theme = s.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('bg-theme', theme);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      return { ...s, theme };
     }
-    case 'UPDATE_ENTRY': {
-      const exists = state.entries.some((e) => e.id === action.entry.id);
-      return { ...state, entries: exists ? state.entries.map((e) => (e.id === action.entry.id ? action.entry : e)) : [action.entry, ...state.entries], selectedEntryId: action.entry.id };
+    case 'SET_LOADING':
+      return { ...s, isLoading: a.value };
+    case 'UPSERT_FOLDER': {
+      const exists = s.folders.some((f) => f.id === a.folder.id);
+      return { ...s, folders: exists ? s.folders.map((f) => f.id === a.folder.id ? a.folder : f) : [...s.folders, a.folder] };
+    }
+    case 'REMOVE_FOLDER': {
+      const removeIds = new Set<string>([a.id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const f of s.folders) {
+          if (f.parent_id && removeIds.has(f.parent_id) && !removeIds.has(f.id)) {
+            removeIds.add(f.id);
+            changed = true;
+          }
+        }
+      }
+      return {
+        ...s,
+        folders: s.folders.filter((f) => !removeIds.has(f.id)),
+        entries: s.entries.map((e) => removeIds.has(e.folder_id || '') ? { ...e, folder_id: null } : e),
+        contacts: s.contacts.map((c) => removeIds.has(c.folder_id || '') ? { ...c, folder_id: null } : c),
+      };
+    }
+    case 'UPSERT_ENTRY': {
+      const exists = s.entries.some((e) => e.id === a.entry.id);
+      return { ...s, entries: exists ? s.entries.map((e) => e.id === a.entry.id ? a.entry : e) : [a.entry, ...s.entries] };
     }
     case 'REMOVE_ENTRY':
-      return { ...state, entries: state.entries.filter((e) => e.id !== action.id), selectedEntryId: state.selectedEntryId === action.id ? null : state.selectedEntryId };
-    case 'UPDATE_CONTACT': {
-      const exists = state.contacts.some((c) => c.id === action.contact.id);
-      return { ...state, contacts: exists ? state.contacts.map((c) => (c.id === action.contact.id ? action.contact : c)) : [action.contact, ...state.contacts], selectedContactId: action.contact.id };
+      return { ...s, entries: s.entries.filter((e) => e.id !== a.id), selection: matchesEntry(s.selection, a.id) ? { kind: 'home' } : s.selection };
+    case 'UPSERT_CONTACT': {
+      const exists = s.contacts.some((c) => c.id === a.contact.id);
+      return { ...s, contacts: exists ? s.contacts.map((c) => c.id === a.contact.id ? a.contact : c) : [a.contact, ...s.contacts] };
     }
     case 'REMOVE_CONTACT':
-      return { ...state, contacts: state.contacts.filter((c) => c.id !== action.id), selectedContactId: state.selectedContactId === action.id ? null : state.selectedContactId };
+      return { ...s, contacts: s.contacts.filter((c) => c.id !== a.id), selection: matchesContact(s.selection, a.id) ? { kind: 'home' } : s.selection };
   }
 }
 
-const AppContext = createContext<(AppState & { dispatch: React.Dispatch<Action>; refresh: () => Promise<void> }) | null>(null);
+function matchesEntry(sel: SelectionTarget, id: string) {
+  return sel.kind === 'entry' && sel.entry_id === id;
+}
+function matchesContact(sel: SelectionTarget, id: string) {
+  return sel.kind === 'contact' && sel.contact_id === id;
+}
+
+interface Ctx extends AppState {
+  dispatch: React.Dispatch<Action>;
+  refresh: () => Promise<void>;
+  selectEntry: (id: string) => Promise<void>;
+  selectContact: (id: string) => Promise<void>;
+  selectFolder: (id: string) => void;
+  selectTop: (top: TopCategory) => void;
+  goHome: () => void;
+}
+
+const AppContext = createContext<Ctx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initial);
 
   const refresh = useCallback(async () => {
     try {
       dispatch({ type: 'SET_LOADING', value: true });
-      const [entries, contacts, counts] = await Promise.all([
-        db.getEntries({}),
-        db.getContacts({}),
-        db.getCategoryCounts(),
+      const [folders, entries, contacts, recents] = await Promise.all([
+        db.listFolders(), db.listEntries(), db.listContacts(), db.listRecents(),
       ]);
-      dispatch({ type: 'SET_ENTRIES', entries });
-      dispatch({ type: 'SET_CONTACTS', contacts });
-      dispatch({ type: 'SET_COUNTS', counts });
-    } catch (error) {
-      toast.error(String(error));
+      dispatch({ type: 'SET_DATA', folders, entries, contacts, recents });
+    } catch (err) {
+      toast.error(String(err));
     } finally {
       dispatch({ type: 'SET_LOADING', value: false });
     }
   }, []);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', state.theme !== 'light');
+    document.documentElement.classList.toggle('dark', state.theme === 'dark');
     void refresh();
   }, [refresh]);
 
-  return <AppContext.Provider value={{ ...state, dispatch, refresh }}>{children}</AppContext.Provider>;
+  const selectEntry = useCallback(async (id: string) => {
+    dispatch({ type: 'SELECT', target: { kind: 'entry', entry_id: id } });
+    try {
+      await db.touchRecent('entry', id);
+      const recents = await db.listRecents();
+      dispatch({ type: 'SET_RECENTS', recents });
+    } catch {/* ignore */}
+  }, []);
+
+  const selectContact = useCallback(async (id: string) => {
+    dispatch({ type: 'SELECT', target: { kind: 'contact', contact_id: id } });
+    try {
+      await db.touchRecent('contact', id);
+      const recents = await db.listRecents();
+      dispatch({ type: 'SET_RECENTS', recents });
+    } catch {/* ignore */}
+  }, []);
+
+  const selectFolder = useCallback((id: string) => {
+    dispatch({ type: 'SELECT', target: { kind: 'folder', folder_id: id } });
+  }, []);
+
+  const selectTop = useCallback((top: TopCategory) => {
+    dispatch({ type: 'SELECT', target: { kind: 'top', top } });
+  }, []);
+
+  const goHome = useCallback(() => {
+    dispatch({ type: 'SELECT', target: { kind: 'home' } });
+  }, []);
+
+  const value = useMemo<Ctx>(() => ({
+    ...state, dispatch, refresh, selectEntry, selectContact, selectFolder, selectTop, goHome,
+  }), [state, refresh, selectEntry, selectContact, selectFolder, selectTop, goHome]);
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

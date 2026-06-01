@@ -15,19 +15,26 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::get_entries,
+            commands::list_folders,
+            commands::save_folder,
+            commands::delete_folder,
+            commands::rename_folder,
+            commands::move_folder,
+            commands::list_entries,
             commands::get_entry,
             commands::save_entry,
             commands::delete_entry,
+            commands::move_entry,
             commands::toggle_favorite,
-            commands::cycle_status,
-            commands::search_entries,
-            commands::get_category_counts,
-            commands::get_contacts,
+            commands::list_contacts,
             commands::save_contact,
             commands::delete_contact,
+            commands::move_contact,
+            commands::search_all,
+            commands::touch_recent,
+            commands::list_recents,
             commands::export_json,
-            commands::import_json
+            commands::import_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running BreakGlass");
