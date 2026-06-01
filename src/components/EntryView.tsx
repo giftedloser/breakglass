@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ExternalLink, FolderInput, Pencil, Save, Star, Trash2, X } from 'lucide-react';
 import { MoveDialog } from './MoveDialog';
@@ -33,6 +33,7 @@ export function EntryView({ entryId }: { entryId: string }) {
   const [kind, setKind] = useState<string>(entry?.kind ?? defaultKind(entry?.top_category ?? 'notes'));
   const [props, setProps] = useState<Record<string, string>>(parseProperties(entry?.properties));
   const [editingBody, setEditingBody] = useState(false);
+  const [editingFields, setEditingFields] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -46,8 +47,13 @@ export function EntryView({ entryId }: { entryId: string }) {
     setUrl(entry.url ?? '');
     setContent(entry.content);
     setKind(entry.kind ?? defaultKind(entry.top_category));
-    setProps(parseProperties(entry.properties));
+    const initProps = parseProperties(entry.properties);
+    setProps(initProps);
     setEditingBody(false);
+    // Auto-expand fields editor only when there are configured fields and they're all empty.
+    const fieldList = kindDef(entry.top_category, entry.kind).fields;
+    const anyEmpty = fieldList.length > 0 && fieldList.every((f) => !initProps[f.key]?.trim());
+    setEditingFields(anyEmpty);
     dirtyRef.current = false;
   }, [entryId]);
 
@@ -226,18 +232,41 @@ export function EntryView({ entryId }: { entryId: string }) {
       )}
 
       {fields.length > 0 && (
-        <section className="panel">
-          <h3>Fields</h3>
-          <div className="field-grid">
-            {fields.map((f) => (
-              <label key={f.key} className={f.wide ? 'wide' : ''}>
-                {f.label}
-                <input value={props[f.key] ?? ''} placeholder={f.placeholder}
-                       onChange={(e) => updateField(f.key, e.target.value)}
-                       onBlur={saveFields} />
-              </label>
-            ))}
+        <section className={`panel meta-panel ${editingFields ? 'is-editing' : 'is-collapsed'}`}>
+          <div className="body-head">
+            <h3>Fields</h3>
+            {editingFields
+              ? <button className="primary-btn" onClick={async () => { await saveFields(); setEditingFields(false); }}>
+                  <Save size={12} /> Done
+                </button>
+              : <button className="ghost-btn" onClick={() => setEditingFields(true)}>
+                  <Pencil size={12} /> Edit fields
+                </button>}
           </div>
+          {editingFields ? (
+            <div className="field-grid">
+              {fields.map((f) => (
+                <label key={f.key} className={f.wide ? 'wide' : ''}>
+                  {f.label}
+                  <input value={props[f.key] ?? ''} placeholder={f.placeholder}
+                         onChange={(e) => updateField(f.key, e.target.value)}
+                         onBlur={saveFields} />
+                </label>
+              ))}
+            </div>
+          ) : (
+            (() => {
+              const hasAny = fields.some((f) => props[f.key]?.trim());
+              if (!hasAny) return <div className="empty">No fields filled in yet.</div>;
+              return (
+                <dl className="kv-list">
+                  {fields.map((f) => props[f.key]?.trim()
+                    ? <Fragment key={f.key}><dt>{f.label}</dt><dd>{props[f.key]}</dd></Fragment>
+                    : null)}
+                </dl>
+              );
+            })()
+          )}
         </section>
       )}
 

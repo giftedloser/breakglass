@@ -453,6 +453,180 @@ pub fn list_recents(state: State<Mutex<Connection>>) -> Result<Vec<RecentItem>, 
     rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
 }
 
+// ─────────────── demo data ───────────────
+
+#[tauri::command]
+pub fn seed_demo_data(state: State<Mutex<Connection>>) -> Result<serde_json::Value, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let ts = now();
+
+    let mk_folder = |conn: &Connection, parent_id: Option<&str>, top: &str, name: &str, ts: &str| -> Result<String, String> {
+        let id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO folders (id,parent_id,top_category,name,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,0,?5,?5)",
+            params![id, parent_id, top, name, ts],
+        ).map_err(|e| e.to_string())?;
+        Ok(id)
+    };
+
+    let mk_entry = |conn: &Connection, top: &str, folder_id: Option<&str>, app_id: Option<&str>,
+                    kind: &str, title: &str, body: &str, props_json: &str, url: Option<&str>, ts: &str|
+        -> Result<String, String> {
+        let id = Uuid::new_v4().to_string();
+        let content = if body.is_empty() { "{}".to_string() } else {
+            serde_json::json!({ "type":"doc", "content": [ { "type":"paragraph", "content": [ { "type":"text", "text": body } ] } ] }).to_string()
+        };
+        conn.execute(
+            "INSERT INTO entries (id,title,top_category,folder_id,app_id,kind,properties,is_favorite,content,url,tags,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,0,?8,?9,'[]',0,?10,?10)",
+            params![id, title, top, folder_id, app_id, kind, props_json, content, url, ts],
+        ).map_err(|e| e.to_string())?;
+        Ok(id)
+    };
+
+    let mk_app = |conn: &Connection, folder_id: Option<&str>, name: &str, vendor: &str,
+                  url: &str, login_notes: &str, criticality: &str, ts: &str|
+        -> Result<String, String> {
+        let id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO apps (id,folder_id,name,vendor,url,login_notes,criticality,tags,is_favorite,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,'[]',0,0,?8,?8)",
+            params![id, folder_id, name, vendor, url, login_notes, criticality, ts],
+        ).map_err(|e| e.to_string())?;
+        Ok(id)
+    };
+
+    // Emergency
+    let em_floor = mk_folder(&conn, None, "emergency", "Casino floor", &ts)?;
+    let em_hotel = mk_folder(&conn, None, "emergency", "Hotel", &ts)?;
+    mk_entry(&conn, "emergency", Some(&em_floor), None, "runbook", "Slot floor offline",
+             "1. Check rack PDU. 2. Verify VLAN 10 uplink on core switch. 3. Page IGT support if gaming-side persists past 10 minutes.",
+             "{}", None, &ts)?;
+    mk_entry(&conn, "emergency", Some(&em_floor), None, "runbook", "Loss of power - casino side",
+             "Generator should kick in within 30s. If not, contact facilities at extension 4400.",
+             "{}", None, &ts)?;
+    mk_entry(&conn, "emergency", Some(&em_hotel), None, "runbook", "Hotel lock system down",
+             "Front desk uses manual override keys until INFOR check-in is restored. See How To > Reset hotel lock system.",
+             "{}", None, &ts)?;
+
+    // Servers
+    let srv_inf = mk_folder(&conn, None, "servers", "Infra", &ts)?;
+    let srv_gam = mk_folder(&conn, None, "servers", "Gaming", &ts)?;
+    mk_entry(&conn, "servers", Some(&srv_inf), None, "server", "DC01",
+             "Primary domain controller. Replicates to DC02 every 15 min.",
+             r#"{"name":"DC01","ip":"10.10.20.10","role":"Primary AD / DNS"}"#, None, &ts)?;
+    mk_entry(&conn, "servers", Some(&srv_inf), None, "server", "DC02",
+             "Secondary DC. Holds FSMO roles for the DR site.",
+             r#"{"name":"DC02","ip":"10.10.20.11","role":"Secondary AD / DNS"}"#, None, &ts)?;
+    mk_entry(&conn, "servers", Some(&srv_inf), None, "server", "File-SRV-01",
+             "Shared drives map here. Backed up nightly to NAS.",
+             r#"{"name":"File-SRV-01","ip":"10.10.20.30","role":"SMB file share"}"#, None, &ts)?;
+    mk_entry(&conn, "servers", Some(&srv_gam), None, "server", "Slot-DB-01",
+             "Hosts IGT slot database. Replicates to Slot-DB-02 hot-standby.",
+             r#"{"name":"Slot-DB-01","ip":"10.10.10.20","role":"IGT EZPay backing DB"}"#, None, &ts)?;
+
+    // DBs
+    let db_inf = mk_folder(&conn, None, "dbs", "Infra", &ts)?;
+    let db_gam = mk_folder(&conn, None, "dbs", "Gaming", &ts)?;
+    let db_snips = mk_folder(&conn, None, "dbs", "Snippets", &ts)?;
+    mk_entry(&conn, "dbs", Some(&db_gam), None, "database", "slot_main",
+             "Production slot DB. Read replica at slot-db-02.",
+             r#"{"name":"slot_main","host":"10.10.10.20"}"#, None, &ts)?;
+    mk_entry(&conn, "dbs", Some(&db_inf), None, "database", "hotel_pms",
+             "INFOR PMS backing DB. Restart only with vendor on the line.",
+             r#"{"name":"hotel_pms","host":"10.10.20.40"}"#, None, &ts)?;
+    mk_entry(&conn, "dbs", Some(&db_snips), None, "snippet", "List active sessions (MSSQL)",
+             "SELECT session_id, login_name, host_name, program_name FROM sys.dm_exec_sessions WHERE is_user_process = 1;",
+             r#"{"engine":"MSSQL"}"#, None, &ts)?;
+    mk_entry(&conn, "dbs", Some(&db_snips), None, "snippet", "Tail recent SQL errors",
+             "SELECT TOP 100 * FROM sys.dm_exec_query_stats ORDER BY last_execution_time DESC;",
+             r#"{"engine":"MSSQL"}"#, None, &ts)?;
+
+    // Network
+    let net_v = mk_folder(&conn, None, "network", "VLANs", &ts)?;
+    let net_s = mk_folder(&conn, None, "network", "Subnets", &ts)?;
+    let net_d = mk_folder(&conn, None, "network", "Devices", &ts)?;
+    mk_entry(&conn, "network", Some(&net_v), None, "vlan", "VLAN 10 - Slot floor",
+             "All gaming devices on the floor. Isolated from corp by FW rule G-10.",
+             r#"{"vlan_id":"10","subnet":"10.10.10.0/24","gateway":"10.10.10.1","purpose":"Gaming floor"}"#, None, &ts)?;
+    mk_entry(&conn, "network", Some(&net_v), None, "vlan", "VLAN 20 - Back office",
+             "Staff workstations and printers.",
+             r#"{"vlan_id":"20","subnet":"10.10.20.0/24","gateway":"10.10.20.1","purpose":"Back office"}"#, None, &ts)?;
+    mk_entry(&conn, "network", Some(&net_v), None, "vlan", "VLAN 30 - Hotel",
+             "Guest WiFi and hotel-side systems.",
+             r#"{"vlan_id":"30","subnet":"10.10.30.0/24","gateway":"10.10.30.1","purpose":"Hotel / guest"}"#, None, &ts)?;
+    mk_entry(&conn, "network", Some(&net_s), None, "subnet", "10.10.10.0/24",
+             "Slot floor subnet. DHCP 10.10.10.50-200.",
+             r#"{"cidr":"10.10.10.0/24","gateway":"10.10.10.1","dhcp_range":"10.10.10.50 - .200"}"#, None, &ts)?;
+    mk_entry(&conn, "network", Some(&net_d), None, "switch", "core-sw01",
+             "Core stack. Aruba 6300, mgmt IP below.",
+             r#"{"hostname":"core-sw01","ip":"10.10.0.2","model":"Aruba 6300","location":"MDF"}"#, None, &ts)?;
+
+    // Apps
+    let apps_igt = mk_folder(&conn, None, "apps", "IGT", &ts)?;
+    let apps_ms = mk_folder(&conn, None, "apps", "Microsoft", &ts)?;
+    let igt_ezpay = mk_app(&conn, Some(&apps_igt), "EZPay", "IGT",
+        "https://ezpay.igt.com",
+        "SSO via Okta. Break-glass admin in Bitwarden as 'igt-ezpay-admin'.",
+        "high", &ts)?;
+    mk_entry(&conn, "apps", None, Some(&igt_ezpay), "generic", "EZPay license renewal",
+             "Annual renewal in November. Submit PO to procurement 30 days prior. Vendor contact: Sarah Chen.",
+             "{}", None, &ts)?;
+    mk_entry(&conn, "apps", None, Some(&igt_ezpay), "generic", "EZPay login broken",
+             "1. Check Okta status. 2. Re-enroll MFA in Okta admin. 3. Have user retry from a known IP.",
+             "{}", None, &ts)?;
+    let igt_patron = mk_app(&conn, Some(&apps_igt), "Patron", "IGT",
+        "https://patron.igt.com",
+        "Same Okta SSO as EZPay.",
+        "medium", &ts)?;
+    mk_entry(&conn, "apps", None, Some(&igt_patron), "generic", "Card reader reset",
+             "Power cycle the kiosk. If still red LED, swap reader from spares cabinet C-12.",
+             "{}", None, &ts)?;
+    let ms_excel = mk_app(&conn, Some(&apps_ms), "Excel", "Microsoft",
+        "https://office.com",
+        "Licensed via Microsoft 365 E3.",
+        "low", &ts)?;
+    mk_entry(&conn, "apps", None, Some(&ms_excel), "generic", "Re-activate Office",
+             "If Office shows 'product deactivated', sign out under File > Account, sign back in with corp creds.",
+             "{}", None, &ts)?;
+
+    // Notes
+    let notes_q = mk_folder(&conn, None, "notes", "Quirks & gotchas", &ts)?;
+    mk_entry(&conn, "notes", Some(&notes_q), None, "generic", "Outlook PST quirk",
+             "If Outlook freezes opening a large PST, increase the cache size in registry under HKCU\\Software\\Microsoft\\Office.",
+             "{}", None, &ts)?;
+    mk_entry(&conn, "notes", None, None, "generic", "Bitwarden vault pointers",
+             "Admin vault is 'breakglass-admin'. Daily-use vault is 'mj-personal'. Recovery codes in physical safe (combo with Sarah).",
+             "{}", None, &ts)?;
+
+    // How To
+    mk_entry(&conn, "howto", None, None, "generic", "Reset marquee sign",
+             "1. Open closet C-04. 2. Unplug controller. 3. Wait 30 seconds. 4. Plug back in, wait for boot tone.",
+             "{}", None, &ts)?;
+    mk_entry(&conn, "howto", None, None, "generic", "Reset hotel lock system",
+             "On the front desk PC, run 'InnFinity Service Restart' shortcut. Wait for tray icon green. Locks resume within 60s.",
+             "{}", None, &ts)?;
+    mk_entry(&conn, "howto", None, None, "generic", "Unlock an AD user account",
+             "ADUC > Find user > Account tab > uncheck 'Account is locked out' > OK. Or run: Unlock-ADAccount -Identity <samaccountname>",
+             "{}", None, &ts)?;
+
+    // Weekly Reports
+    mk_entry(&conn, "weekly", None, None, "report", "Week of 2026-05-25",
+             "Summary: Quiet week, no incidents.\n\nAccomplishments: deployed new switch in MDF; closed 12 helpdesk tickets.\n\nBlockers: still waiting on PO approval for the UPS replacement.\n\nNext steps: schedule the hotel-side firmware update for the locks.",
+             r#"{"week_of":"2026-05-25"}"#, None, &ts)?;
+
+    // Site Links
+    mk_entry(&conn, "sitelinks", None, None, "generic", "Okta admin",
+             "", r#"{"description":"User MFA, SSO config, app assignments."}"#, Some("https://admin.okta.com"), &ts)?;
+    mk_entry(&conn, "sitelinks", None, None, "generic", "IGT support portal",
+             "", r#"{"description":"Ticket submission and license renewals."}"#, Some("https://support.igt.com"), &ts)?;
+    mk_entry(&conn, "sitelinks", None, None, "generic", "Microsoft 365 admin",
+             "", r#"{"description":"User licenses, mailboxes, Teams config."}"#, Some("https://admin.microsoft.com"), &ts)?;
+
+    Ok(serde_json::json!({ "ok": true }))
+}
+
 // ─────────────── export / import ───────────────
 
 #[tauri::command]

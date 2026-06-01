@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, Plus, Star, Trash2, X } from 'lucide-react';
+import { ExternalLink, Pencil, Plus, Save, Star, Trash2, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
 import { formatRelativeDate } from '../lib/utils';
+
+const CRIT_LABEL: Record<string, string> = {
+  high: 'High criticality',
+  medium: 'Medium criticality',
+  low: 'Low criticality',
+  '': '',
+};
 
 export function AppDetail({ appId }: { appId: string }) {
   const { apps, entries, dispatch, selectEntry } = useApp();
@@ -17,11 +24,16 @@ export function AppDetail({ appId }: { appId: string }) {
   const [tags, setTags] = useState<string[]>(app?.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
+  // Editing meta starts off unless the app has no metadata yet (fresh from "+ New app").
+  const noMeta = !(app?.vendor || app?.url || app?.login_notes || app?.criticality);
+  const [editingInfo, setEditingInfo] = useState(noMeta);
 
   useEffect(() => {
     if (!app) return;
     setName(app.name); setVendor(app.vendor); setUrl(app.url); setLoginNotes(app.login_notes);
     setCriticality(app.criticality); setTags(app.tags);
+    const empty = !(app.vendor || app.url || app.login_notes || app.criticality);
+    setEditingInfo(empty);
   }, [appId]);
 
   const save = async (overrides: Partial<{ name: string; vendor: string; url: string; login_notes: string; criticality: string; tags: string[]; is_favorite: boolean }> = {}) => {
@@ -44,10 +56,10 @@ export function AppDetail({ appId }: { appId: string }) {
     if (!app) return;
     const count = entries.filter((e) => e.app_id === app.id).length;
     const msg = count > 0
-      ? `Delete app "${app.name}"?\n\nThe app has ${count} entries. Click OK to also delete those entries, or Cancel to keep them (they'll become orphan entries with no app).`
+      ? `Delete app "${app.name}"? It has ${count} entries.`
       : `Delete app "${app.name}"?`;
     if (!window.confirm(msg)) return;
-    const cascade = count > 0 ? window.confirm(`Also delete the ${count} entries under this app? (Cancel = keep them as orphans)`) : false;
+    const cascade = count > 0 ? window.confirm(`Also delete the ${count} entries under this app?\n\nOK = delete entries too\nCancel = keep them as orphans`) : false;
     try {
       await db.deleteApp(app.id, cascade);
       dispatch({ type: 'REMOVE_APP', id: app.id });
@@ -61,7 +73,6 @@ export function AppDetail({ appId }: { appId: string }) {
     setTags(next); setTagDraft('');
     void save({ tags: next });
   };
-
   const removeTag = (t: string) => {
     const next = tags.filter((x) => x !== t);
     setTags(next); void save({ tags: next });
@@ -69,7 +80,7 @@ export function AppDetail({ appId }: { appId: string }) {
 
   const addEntry = async () => {
     if (!app) return;
-    const title = window.prompt(`New entry under "${app.name}" (e.g. "license renewal", "install steps")`);
+    const title = window.prompt(`New entry under "${app.name}"`);
     if (!title?.trim()) return;
     try {
       const e = await db.saveEntry({
@@ -88,10 +99,12 @@ export function AppDetail({ appId }: { appId: string }) {
     .filter((e) => e.app_id === app.id)
     .sort((a, b) => a.title.localeCompare(b.title));
 
+  const hasMeta = !!(vendor || url || loginNotes || criticality);
+
   return (
     <div className="content-pane">
       <div className="app-detail-header">
-        <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
+        <input className="entry-title-input plain-on-blur" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
         <div className="header-actions">
           <button className="icon-btn" onClick={togglePin} title={app.is_favorite ? 'Unpin' : 'Pin'}>
             <Star size={14} className={app.is_favorite ? 'star-mark filled' : ''} />
@@ -104,39 +117,64 @@ export function AppDetail({ appId }: { appId: string }) {
         <span className="meta-when">Updated {formatRelativeDate(app.updated_at)}
           {savedFlash && <span className="saved-flash"> · saved</span>}
         </span>
-        <select className="kind-select" value={criticality} onChange={(e) => { setCriticality(e.target.value); save({ criticality: e.target.value }); }}>
-          <option value="">No criticality</option>
-          <option value="high">High criticality</option>
-          <option value="medium">Medium criticality</option>
-          <option value="low">Low criticality</option>
-        </select>
+        {!editingInfo && criticality && <span className="meta-pill">{CRIT_LABEL[criticality]}</span>}
         <div className="tag-row">
           {tags.map((t) => (
             <span key={t} className="tag-pill">
-              {t}<button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>
+              {t}{editingInfo && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
             </span>
           ))}
-          <input className="tag-input" placeholder="+ tag" value={tagDraft}
-                 onChange={(e) => setTagDraft(e.target.value)}
-                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-                 onBlur={() => tagDraft && addTag()} />
+          {editingInfo && (
+            <input className="tag-input" placeholder="+ tag" value={tagDraft}
+                   onChange={(e) => setTagDraft(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                   onBlur={() => tagDraft && addTag()} />
+          )}
         </div>
       </div>
 
-      <section className="panel">
-        <h3>App info</h3>
-        <div className="field-grid">
-          <label>Vendor <input value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={() => save({ vendor })} /></label>
-          <label>URL
-            <div className="copy-field">
-              <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => save({ url })} placeholder="https://..." />
-              {url && <button className="copy-btn" onClick={() => openExternal(url)} title="Open"><ExternalLink size={12} /></button>}
-            </div>
-          </label>
-          <label className="wide">Login / access notes
-            <textarea className="notes-area" rows={3} value={loginNotes} onChange={(e) => setLoginNotes(e.target.value)} onBlur={() => save({ login_notes: loginNotes })} placeholder="SSO via Okta. Break-glass account in Bitwarden as 'app-admin'." />
-          </label>
+      <section className={`panel meta-panel ${editingInfo ? 'is-editing' : 'is-collapsed'}`}>
+        <div className="body-head">
+          <h3>App info</h3>
+          {editingInfo
+            ? <button className="primary-btn" onClick={async () => { await save(); setEditingInfo(false); }}>
+                <Save size={12} /> Done
+              </button>
+            : <button className="ghost-btn" onClick={() => setEditingInfo(true)}>
+                <Pencil size={12} /> Edit info
+              </button>}
         </div>
+
+        {editingInfo ? (
+          <div className="field-grid">
+            <label>Vendor <input value={vendor} onChange={(e) => setVendor(e.target.value)} onBlur={() => save({ vendor })} /></label>
+            <label>Criticality
+              <select className="field-select" value={criticality} onChange={(e) => { setCriticality(e.target.value); save({ criticality: e.target.value }); }}>
+                <option value="">none</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label className="wide">URL
+              <div className="copy-field">
+                <input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={() => save({ url })} placeholder="https://..." />
+                {url && <button className="copy-btn" onClick={() => openExternal(url)} title="Open"><ExternalLink size={12} /></button>}
+              </div>
+            </label>
+            <label className="wide">Login / access notes
+              <textarea className="notes-area" rows={3} value={loginNotes} onChange={(e) => setLoginNotes(e.target.value)} onBlur={() => save({ login_notes: loginNotes })} placeholder="SSO via Okta. Break-glass account in Bitwarden as 'app-admin'." />
+            </label>
+          </div>
+        ) : hasMeta ? (
+          <dl className="kv-list">
+            {vendor && <><dt>Vendor</dt><dd>{vendor}</dd></>}
+            {url && <><dt>URL</dt><dd><a className="link" onClick={() => openExternal(url)}>{url}</a></dd></>}
+            {loginNotes && <><dt>Login</dt><dd className="kv-prose">{loginNotes}</dd></>}
+          </dl>
+        ) : (
+          <div className="empty">No app info yet. Click "Edit info" to add vendor, URL, login notes.</div>
+        )}
       </section>
 
       <section className="panel">

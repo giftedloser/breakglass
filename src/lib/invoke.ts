@@ -49,7 +49,8 @@ export const db = {
     invoke<void>('touch_recent', { kind, id }),
   listRecents: () => invoke<RecentItem[]>('list_recents'),
 
-  // import/export
+  // demo / import / export
+  seedDemoData: () => invoke<{ ok: boolean }>('seed_demo_data'),
   exportJson: () => invoke<string>('export_json'),
   importJson: (path: string) =>
     invoke<{ folders_imported: number; apps_imported: number; entries_imported: number; contacts_imported: number }>('import_json', { path }),

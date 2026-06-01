@@ -37,6 +37,7 @@ fn main() {
             commands::search_all,
             commands::touch_recent,
             commands::list_recents,
+            commands::seed_demo_data,
             commands::export_json,
             commands::import_json,
         ])

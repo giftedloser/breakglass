@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Copy, FolderInput, Star, Trash2, X } from 'lucide-react';
+import { Copy, FolderInput, Pencil, Save, Star, Trash2, X } from 'lucide-react';
 import { MoveDialog } from './MoveDialog';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
@@ -34,6 +34,9 @@ export function ContactView({ contactId }: { contactId: string }) {
   const [tagDraft, setTagDraft] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const noDetails = !(contact?.role || contact?.company || contact?.phone || contact?.email);
+  const [editingDetails, setEditingDetails] = useState(noDetails);
+  const [editingNotes, setEditingNotes] = useState(false);
 
   useEffect(() => {
     if (!contact) return;
@@ -44,6 +47,8 @@ export function ContactView({ contactId }: { contactId: string }) {
     setEmail(contact.email);
     setNotes(contact.notes);
     setTags(contact.tags);
+    setEditingDetails(!(contact.role || contact.company || contact.phone || contact.email));
+    setEditingNotes(false);
   }, [contactId]);
 
   const save = async (overrides: Partial<{ name: string; role: string; company: string; phone: string; email: string; notes: string; tags: string[]; is_favorite: boolean }> = {}) => {
@@ -127,7 +132,7 @@ export function ContactView({ contactId }: { contactId: string }) {
       )}
 
       <div className="entry-title-row">
-        <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
+        <input className="entry-title-input plain-on-blur" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} />
       </div>
 
       <div className="entry-meta">
@@ -138,39 +143,81 @@ export function ContactView({ contactId }: { contactId: string }) {
         <div className="tag-row">
           {tags.map((t) => (
             <span key={t} className="tag-pill">
-              {t}<button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>
+              {t}{editingDetails && <button className="tag-x" onClick={() => removeTag(t)}><X size={10} /></button>}
             </span>
           ))}
-          <input className="tag-input" placeholder="+ tag" value={tagDraft}
-                 onChange={(e) => setTagDraft(e.target.value)}
-                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-                 onBlur={() => tagDraft && addTag()} />
+          {editingDetails && (
+            <input className="tag-input" placeholder="+ tag" value={tagDraft}
+                   onChange={(e) => setTagDraft(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                   onBlur={() => tagDraft && addTag()} />
+          )}
         </div>
       </div>
 
-      <section className="panel">
-        <h3>Details</h3>
-        <div className="field-grid">
-          <label>Role <input value={role} onChange={(e) => setRole(e.target.value)} onBlur={() => save({ role })} /></label>
-          <label>Company <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={() => save({ company })} /></label>
-          <label>Phone
-            <div className="copy-field">
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => save({ phone })} />
-              <button className="copy-btn" onClick={() => doCopy(phone, 'Phone')}><Copy size={12} /></button>
-            </div>
-          </label>
-          <label>Email
-            <div className="copy-field">
-              <input value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => save({ email })} />
-              <button className="copy-btn" onClick={() => doCopy(email, 'Email')}><Copy size={12} /></button>
-            </div>
-          </label>
+      <section className={`panel meta-panel ${editingDetails ? 'is-editing' : 'is-collapsed'}`}>
+        <div className="body-head">
+          <h3>Details</h3>
+          {editingDetails
+            ? <button className="primary-btn" onClick={async () => { await save(); setEditingDetails(false); }}>
+                <Save size={12} /> Done
+              </button>
+            : <button className="ghost-btn" onClick={() => setEditingDetails(true)}>
+                <Pencil size={12} /> Edit
+              </button>}
         </div>
+        {editingDetails ? (
+          <div className="field-grid">
+            <label>Role <input value={role} onChange={(e) => setRole(e.target.value)} onBlur={() => save({ role })} /></label>
+            <label>Company <input value={company} onChange={(e) => setCompany(e.target.value)} onBlur={() => save({ company })} /></label>
+            <label>Phone
+              <div className="copy-field">
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={() => save({ phone })} />
+                <button className="copy-btn" onClick={() => doCopy(phone, 'Phone')}><Copy size={12} /></button>
+              </div>
+            </label>
+            <label>Email
+              <div className="copy-field">
+                <input value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => save({ email })} />
+                <button className="copy-btn" onClick={() => doCopy(email, 'Email')}><Copy size={12} /></button>
+              </div>
+            </label>
+          </div>
+        ) : (
+          (role || company || phone || email) ? (
+            <dl className="kv-list">
+              {role && <><dt>Role</dt><dd>{role}</dd></>}
+              {company && <><dt>Company</dt><dd>{company}</dd></>}
+              {phone && <><dt>Phone</dt><dd>
+                {phone}
+                <button className="inline-copy" onClick={() => doCopy(phone, 'Phone')} title="Copy"><Copy size={11} /></button>
+              </dd></>}
+              {email && <><dt>Email</dt><dd>
+                <a className="link" onClick={() => doCopy(email, 'Email')}>{email}</a>
+                <button className="inline-copy" onClick={() => doCopy(email, 'Email')} title="Copy"><Copy size={11} /></button>
+              </dd></>}
+            </dl>
+          ) : <div className="empty">No contact details yet. Click "Edit" to add phone, email, role, company.</div>
+        )}
       </section>
 
-      <section className="panel">
-        <h3>Notes</h3>
-        <textarea className="notes-area" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => save({ notes })} placeholder="Any extra notes..." />
+      <section className={`panel meta-panel ${editingNotes ? 'is-editing' : 'is-collapsed'}`}>
+        <div className="body-head">
+          <h3>Notes</h3>
+          {editingNotes
+            ? <button className="primary-btn" onClick={async () => { await save({ notes }); setEditingNotes(false); }}>
+                <Save size={12} /> Done
+              </button>
+            : <button className="ghost-btn" onClick={() => setEditingNotes(true)}>
+                <Pencil size={12} /> Edit
+              </button>}
+        </div>
+        {editingNotes
+          ? <textarea className="notes-area" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => save({ notes })} placeholder="Any extra notes..." />
+          : notes
+            ? <div className="notes-readonly">{notes}</div>
+            : <div className="empty">No notes.</div>
+        }
       </section>
     </div>
   );

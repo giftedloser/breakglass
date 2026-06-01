@@ -284,6 +284,50 @@ input, textarea { font: inherit; color: inherit; }
 }
 .entry-title-input:hover { border-bottom-color: var(--line-soft); }
 .entry-title-input:focus { border-bottom-color: var(--accent); }
+.entry-title-input.plain-on-blur { border-bottom-color: transparent; }
+.entry-title-input.plain-on-blur:hover { border-bottom-color: var(--line-soft); }
+.entry-title-input.plain-on-blur:focus { border-bottom-color: var(--accent); }
+
+/* read-only key-value list, used by AppDetail / EntryView / ContactView */
+.kv-list {
+  display: grid; grid-template-columns: minmax(110px, max-content) 1fr;
+  gap: 6px 18px; margin: 0; font-size: 13px;
+}
+.kv-list dt {
+  color: var(--text-dim); text-transform: uppercase; font-size: 10.5px;
+  letter-spacing: 0.1em; font-weight: 600; padding-top: 2px;
+}
+.kv-list dd { margin: 0; color: var(--text); line-height: 1.5; }
+.kv-list dd.kv-prose { white-space: pre-wrap; }
+.kv-list .link {
+  color: var(--link); cursor: pointer; text-decoration: underline;
+  text-decoration-color: rgba(122,167,214,0.35); text-underline-offset: 2px;
+}
+.kv-list .inline-copy {
+  background: transparent; border: 0; color: var(--text-dim); cursor: pointer;
+  padding: 0 4px; margin-left: 4px; border-radius: 3px;
+}
+.kv-list .inline-copy:hover { color: var(--accent); background: var(--panel-2); }
+
+.meta-pill {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--text-muted);
+}
+
+.meta-panel.is-collapsed { background: var(--panel); }
+.meta-panel.is-collapsed h3 { margin-bottom: 8px; }
+.meta-panel.is-editing { background: var(--panel-2); }
+
+.notes-readonly {
+  white-space: pre-wrap; color: var(--text); line-height: 1.6;
+  padding: 4px 0;
+}
+
+.field-select {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+  padding: 6px 10px; outline: none; color: var(--text); font: inherit;
+  text-transform: none; letter-spacing: 0;
+}
 
 .entry-meta {
   display: flex; align-items: center; gap: 12px; margin-bottom: 16px;

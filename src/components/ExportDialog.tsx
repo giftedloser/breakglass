@@ -42,6 +42,14 @@ export function ExportDialog() {
           <p>Imports a previously-saved JSON. Items with matching IDs get updated; new ones are added. Nothing is deleted.</p>
           <button className="ghost-btn" onClick={importJson}>Import from JSON</button>
         </section>
+        <section className="export-section">
+          <h3>Demo data</h3>
+          <p>Populates every category with realistic sample folders, entries, apps, and reports so you can preview the UI. Existing data is left alone — samples are added alongside.</p>
+          <button className="ghost-btn" onClick={async () => {
+            try { await db.seedDemoData(); await refresh(); toast.success('Demo data loaded'); close(); }
+            catch (e) { toast.error(String(e)); }
+          }}>Load demo data</button>
+        </section>
       </div>
     </div>
   );
