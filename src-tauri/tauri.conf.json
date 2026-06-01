@@ -1,0 +1,32 @@
+{
+  "productName": "BreakGlass",
+  "version": "1.0.0",
+  "identifier": "com.breakglass.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{
+      "title": "BreakGlass",
+      "width": 1280,
+      "height": 800,
+      "minWidth": 1024,
+      "minHeight": 600,
+      "resizable": true,
+      "center": true,
+      "decorations": true
+    }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.ico"]
+  },
+  "plugins": {
+    "shell": { "open": true }
+  }
+}
