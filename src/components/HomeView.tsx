@@ -2,7 +2,7 @@ import { useApp } from '../context/AppContext';
 import { topLabel } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
 import { db, openExternal } from '../lib/invoke';
-import { AlertTriangle, AppWindow, CalendarClock, ClipboardCheck, Plus, Star } from 'lucide-react';
+import { AlertTriangle, AppWindow, CalendarClock, Plus, Star, StickyNote } from 'lucide-react';
 import { format, startOfWeek } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -31,17 +31,10 @@ export function HomeView() {
   const emergencyItems = entries
     .filter((e) => e.top_category === 'emergency')
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  const criticalApps = apps
-    .filter((a) => a.criticality === 'high')
-    .sort((a, b) => a.name.localeCompare(b.name));
   const weeklyReports = entries
     .filter((e) => e.top_category === 'weekly')
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  const staleCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
-  const reviewItems = entries
-    .filter((e) => new Date(e.updated_at).getTime() < staleCutoff)
-    .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
-    .slice(0, 6);
+  const noteItems = entries.filter((e) => e.top_category === 'notes');
 
   const newWeeklyReport = async () => {
     const weekOf = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -66,10 +59,10 @@ export function HomeView() {
   };
 
   const statCards = [
-    { label: 'Emergency docs', value: emergencyItems.length, icon: AlertTriangle, action: () => selectTop('emergency') },
-    { label: 'Critical apps', value: criticalApps.length, icon: AppWindow, action: () => selectTop('apps') },
+    { label: 'Emergency', value: emergencyItems.length, icon: AlertTriangle, action: () => selectTop('emergency') },
+    { label: 'Applications', value: apps.length, icon: AppWindow, action: () => selectTop('apps') },
     { label: 'Weekly notes', value: weeklyReports.length, icon: CalendarClock, action: () => selectTop('weekly') },
-    { label: 'Review candidates', value: reviewItems.length, icon: ClipboardCheck, action: () => reviewItems[0] ? void selectEntry(reviewItems[0].id) : selectTop('notes') },
+    { label: 'Notes', value: noteItems.length, icon: StickyNote, action: () => selectTop('notes') },
   ];
 
   return (
