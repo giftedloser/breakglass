@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { ListRowMenu } from './ListRowMenu';
 import { Plus } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { ContactView } from './ContactView';
@@ -33,11 +34,11 @@ export function ContactsModule({ initialFolder }: Props) {
   const selectedId = selection.kind === 'contact' ? selection.contact_id : null;
 
   const newContact = async () => {
-    const name = window.prompt('New contact name');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New contact name', placeholder: 'e.g. Sarah Chen' });
+    if (!name) return;
     try {
       const c = await db.saveContact({
-        name: name.trim(), folder_id: folderFilter || null, role: '', company: '', phone: '', email: '',
+        name, folder_id: folderFilter || null, role: '', company: '', phone: '', email: '',
         notes: '', tags: [], is_favorite: false,
       });
       dispatch({ type: 'UPSERT_CONTACT', contact: c });
@@ -46,10 +47,10 @@ export function ContactsModule({ initialFolder }: Props) {
   };
 
   const newFolder = async () => {
-    const name = window.prompt('New contacts folder');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New contacts folder', placeholder: 'e.g. Vendors' });
+    if (!name) return;
     try {
-      const f = await db.saveFolder({ top_category: 'contacts', parent_id: null, name: name.trim() });
+      const f = await db.saveFolder({ top_category: 'contacts', parent_id: null, name });
       dispatch({ type: 'UPSERT_FOLDER', folder: f });
       setFolderFilter(f.id);
     } catch (err) { toast.error(String(err)); }
@@ -87,18 +88,19 @@ export function ContactsModule({ initialFolder }: Props) {
                 } catch (err) { toast.error(String(err)); }
               };
               const rename = async () => {
-                const next = window.prompt('Rename contact', c.name);
-                if (!next?.trim() || next.trim() === c.name) return;
+                const next = await bgPrompt({ title: 'Rename contact', defaultValue: c.name });
+                if (!next || next === c.name) return;
                 try {
                   const saved = await db.saveContact({
-                    id: c.id, folder_id: c.folder_id, name: next.trim(), role: c.role, company: c.company,
+                    id: c.id, folder_id: c.folder_id, name: next, role: c.role, company: c.company,
                     phone: c.phone, email: c.email, notes: c.notes, tags: c.tags, is_favorite: c.is_favorite,
                   });
                   dispatch({ type: 'UPSERT_CONTACT', contact: saved });
                 } catch (err) { toast.error(String(err)); }
               };
               const remove = async () => {
-                if (!window.confirm(`Delete "${c.name}"?`)) return;
+                const ok = await bgConfirm({ title: `Delete "${c.name}"?`, confirmLabel: 'Delete', danger: true });
+                if (!ok) return;
                 try { await db.deleteContact(c.id); dispatch({ type: 'REMOVE_CONTACT', id: c.id }); }
                 catch (err) { toast.error(String(err)); }
               };

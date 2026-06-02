@@ -12,6 +12,7 @@ import { Editor } from './Editor';
 import { CodeBlock } from './CodeBlock';
 import { Attachments } from './Attachments';
 import { ReportSection, WeeklySections } from './WeeklySections';
+import { bgConfirm } from '../lib/dialogs';
 
 // Reads sections out of an entry's raw properties JSON. Sections can be
 // stored either as a nested JSON array under `sections` or as a stringified
@@ -154,7 +155,8 @@ export function EntryView({ entryId }: { entryId: string }) {
 
   const remove = async () => {
     if (!entry) return;
-    if (!window.confirm(`Delete "${entry.title}"?`)) return;
+    const ok = await bgConfirm({ title: `Delete "${entry.title}"?`, confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     try {
       await db.deleteEntry(entry.id);
       dispatch({ type: 'REMOVE_ENTRY', id: entry.id });

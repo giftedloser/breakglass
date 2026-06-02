@@ -18,6 +18,7 @@ import { Plugin } from '@tiptap/pm/state';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { Bold, CheckSquare, Code, Heading1, Heading2, Heading3, Highlighter, ImageIcon, Italic, LinkIcon, List, ListOrdered, Quote, Redo, TableIcon, Undo } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { bgPrompt } from '../lib/dialogs';
 
 const pasteImages = () =>
   new Plugin({
@@ -122,8 +123,8 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
     editor?.chain().focus().run();
   };
 
-  const addLink = () => {
-    const url = window.prompt('URL');
+  const addLink = async () => {
+    const url = await bgPrompt({ title: 'Link URL', placeholder: 'https://...' });
     if (url) editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   };
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { bgConfirm } from '../lib/dialogs';
 
 export interface ReportSection {
   id: string;
@@ -41,8 +42,9 @@ export function WeeklySections({ sections, editing, onChange }: Props) {
     onChange([...sections, { id: uid(), title: suggestedTitle, content: '' }]);
   };
 
-  const removeSection = (id: string) => {
-    if (!window.confirm('Remove this section?')) return;
+  const removeSection = async (id: string) => {
+    const ok = await bgConfirm({ title: 'Remove this section?', confirmLabel: 'Remove', danger: true });
+    if (!ok) return;
     onChange(sections.filter((s) => s.id !== id));
   };
 

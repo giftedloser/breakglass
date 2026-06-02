@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Plus, Star } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
 import { ListRowMenu } from './ListRowMenu';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { TOP_BY_ID } from '../lib/categories';
@@ -42,11 +43,11 @@ export function StructuredModule({ top, initialFolder }: Props) {
   const newEntry = async (kind?: string) => {
     const k = kind ?? kindFilter ?? defaultKind(top);
     const def = kindDef(top, k);
-    const title = window.prompt(`New ${def.label} name`);
-    if (!title?.trim()) return;
+    const title = await bgPrompt({ title: `New ${def.label}`, placeholder: 'Name' });
+    if (!title) return;
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: top, folder_id: folderFilter || null, app_id: null,
+        title, top_category: top, folder_id: folderFilter || null, app_id: null,
         kind: k, properties: '{}',
         is_favorite: false, content: '', url: null, tags: [],
       });
@@ -56,10 +57,10 @@ export function StructuredModule({ top, initialFolder }: Props) {
   };
 
   const newFolder = async () => {
-    const name = window.prompt(`New ${meta.label} folder`);
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: `New ${meta.label} folder` });
+    if (!name) return;
     try {
-      const f = await db.saveFolder({ top_category: top, parent_id: null, name: name.trim() });
+      const f = await db.saveFolder({ top_category: top, parent_id: null, name });
       dispatch({ type: 'UPSERT_FOLDER', folder: f });
       setFolderFilter(f.id);
     } catch (err) { toast.error(String(err)); }
@@ -110,11 +111,11 @@ export function StructuredModule({ top, initialFolder }: Props) {
                   } catch (err) { toast.error(String(err)); }
                 };
                 const rename = async () => {
-                  const next = window.prompt('Rename', e.title);
-                  if (!next?.trim() || next.trim() === e.title) return;
+                  const next = await bgPrompt({ title: 'Rename', defaultValue: e.title });
+                  if (!next || next === e.title) return;
                   try {
                     const saved = await db.saveEntry({
-                      id: e.id, title: next.trim(), top_category: e.top_category, folder_id: e.folder_id,
+                      id: e.id, title: next, top_category: e.top_category, folder_id: e.folder_id,
                       app_id: e.app_id, kind: e.kind, properties: e.properties,
                       is_favorite: e.is_favorite, content: e.content, url: e.url, tags: e.tags,
                     });
@@ -122,7 +123,8 @@ export function StructuredModule({ top, initialFolder }: Props) {
                   } catch (err) { toast.error(String(err)); }
                 };
                 const remove = async () => {
-                  if (!window.confirm(`Delete "${e.title}"?`)) return;
+                  const ok = await bgConfirm({ title: `Delete "${e.title}"?`, confirmLabel: 'Delete', danger: true });
+                  if (!ok) return;
                   try { await db.deleteEntry(e.id); dispatch({ type: 'REMOVE_ENTRY', id: e.id }); }
                   catch (err) { toast.error(String(err)); }
                 };

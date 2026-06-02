@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { GROUP_LABELS, TOPS, TopMeta } from '../lib/categories';
 import { defaultKind } from '../lib/kinds';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 import { App, Contact, Entry, Folder, TopCategory } from '../types';
 
 type Node =
@@ -84,10 +85,10 @@ export function Sidebar() {
   };
 
   const addFolderAt = async (top: TopCategory, parentId: string | null) => {
-    const name = window.prompt('New folder name');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New folder name', placeholder: 'e.g. Gaming' });
+    if (!name) return;
     try {
-      const folder = await db.saveFolder({ top_category: top, parent_id: parentId, name: name.trim() });
+      const folder = await db.saveFolder({ top_category: top, parent_id: parentId, name });
       dispatch({ type: 'UPSERT_FOLDER', folder });
       if (parentId) dispatch({ type: 'TOGGLE_EXPANDED', id: parentId, value: true });
       dispatch({ type: 'TOGGLE_EXPANDED', id: `top-${top}`, value: true });
@@ -95,11 +96,11 @@ export function Sidebar() {
   };
 
   const addEntryAt = async (top: TopCategory, folderId: string | null) => {
-    const title = window.prompt('New entry title');
-    if (!title?.trim()) return;
+    const title = await bgPrompt({ title: 'New entry title' });
+    if (!title) return;
     try {
       const entry = await db.saveEntry({
-        title: title.trim(), top_category: top, folder_id: folderId, app_id: null,
+        title, top_category: top, folder_id: folderId, app_id: null,
         kind: defaultKind(top), properties: '{}',
         is_favorite: false, content: '', url: null, tags: [],
       });
@@ -109,16 +110,21 @@ export function Sidebar() {
   };
 
   const renameFolder = async (f: Folder) => {
-    const next = window.prompt('Rename folder', f.name);
-    if (!next?.trim() || next.trim() === f.name) return;
+    const next = await bgPrompt({ title: 'Rename folder', defaultValue: f.name });
+    if (!next || next === f.name) return;
     try {
-      const updated = await db.renameFolder(f.id, next.trim());
+      const updated = await db.renameFolder(f.id, next);
       dispatch({ type: 'UPSERT_FOLDER', folder: updated });
     } catch (err) { toast.error(String(err)); }
   };
 
   const deleteFolder = async (f: Folder) => {
-    if (!window.confirm(`Delete folder "${f.name}"? Sub-folders go with it. Entries inside survive but lose their folder.`)) return;
+    const ok = await bgConfirm({
+      title: `Delete folder "${f.name}"?`,
+      message: 'Sub-folders go with it. Entries inside survive but lose their folder.',
+      confirmLabel: 'Delete', danger: true,
+    });
+    if (!ok) return;
     try {
       await db.deleteFolder(f.id);
       dispatch({ type: 'REMOVE_FOLDER', id: f.id });
@@ -127,10 +133,11 @@ export function Sidebar() {
 
   const renameEntry = async (id: string) => {
     const e = entries.find((x) => x.id === id); if (!e) return;
-    const next = window.prompt('Rename entry', e.title); if (!next?.trim() || next.trim() === e.title) return;
+    const next = await bgPrompt({ title: 'Rename entry', defaultValue: e.title });
+    if (!next || next === e.title) return;
     try {
       const saved = await db.saveEntry({
-        id: e.id, title: next.trim(), top_category: e.top_category, folder_id: e.folder_id,
+        id: e.id, title: next, top_category: e.top_category, folder_id: e.folder_id,
         app_id: e.app_id, kind: e.kind, properties: e.properties,
         is_favorite: e.is_favorite, content: e.content, url: e.url, tags: e.tags,
       });
@@ -140,7 +147,8 @@ export function Sidebar() {
 
   const deleteEntry = async (id: string) => {
     const e = entries.find((x) => x.id === id); if (!e) return;
-    if (!window.confirm(`Delete entry "${e.title}"?`)) return;
+    const ok = await bgConfirm({ title: `Delete entry "${e.title}"?`, confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     try { await db.deleteEntry(id); dispatch({ type: 'REMOVE_ENTRY', id }); }
     catch (err) { toast.error(String(err)); }
   };
@@ -159,10 +167,11 @@ export function Sidebar() {
 
   const renameApp = async (appId: string) => {
     const a = apps.find((x) => x.id === appId); if (!a) return;
-    const next = window.prompt('Rename app', a.name); if (!next?.trim() || next.trim() === a.name) return;
+    const next = await bgPrompt({ title: 'Rename app', defaultValue: a.name });
+    if (!next || next === a.name) return;
     try {
       const saved = await db.saveApp({
-        id: a.id, folder_id: a.folder_id, name: next.trim(), vendor: a.vendor, url: a.url,
+        id: a.id, folder_id: a.folder_id, name: next, vendor: a.vendor, url: a.url,
         login_notes: a.login_notes, criticality: a.criticality, tags: a.tags, is_favorite: a.is_favorite,
       });
       dispatch({ type: 'UPSERT_APP', app: saved });
@@ -172,8 +181,17 @@ export function Sidebar() {
   const deleteApp = async (appId: string) => {
     const a = apps.find((x) => x.id === appId); if (!a) return;
     const count = entries.filter((e) => e.app_id === a.id).length;
-    if (!window.confirm(`Delete app "${a.name}"?${count > 0 ? ` Has ${count} child entries.` : ''}`)) return;
-    const cascade = count > 0 ? window.confirm(`Also delete the ${count} entries under it?\nOK = delete, Cancel = orphan`) : false;
+    const ok = await bgConfirm({
+      title: `Delete app "${a.name}"?`,
+      message: count > 0 ? `It has ${count} child entries.` : undefined,
+      confirmLabel: 'Delete', danger: true,
+    });
+    if (!ok) return;
+    const cascade = count > 0 ? await bgConfirm({
+      title: 'Also delete child entries?',
+      message: `${count} entries are under this app. Click Delete to remove them too, or Keep to leave them as orphans.`,
+      confirmLabel: 'Delete entries', cancelLabel: 'Keep', danger: true,
+    }) : false;
     try { await db.deleteApp(a.id, cascade); dispatch({ type: 'REMOVE_APP', id: a.id }); }
     catch (err) { toast.error(String(err)); }
   };
@@ -285,11 +303,11 @@ export function Sidebar() {
   };
 
   const newAppAt = async (folderId: string | null) => {
-    const name = window.prompt('New app name');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New app name', placeholder: 'e.g. Salesforce' });
+    if (!name) return;
     try {
       const app = await db.saveApp({
-        folder_id: folderId, name: name.trim(), vendor: '', url: '',
+        folder_id: folderId, name, vendor: '', url: '',
         login_notes: '', criticality: '', tags: [], is_favorite: false,
       });
       dispatch({ type: 'UPSERT_APP', app });

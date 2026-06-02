@@ -8,6 +8,7 @@ import { topLabel } from '../lib/categories';
 import { copyToClipboard, formatRelativeDate } from '../lib/utils';
 import { Folder } from '../types';
 import { Attachments } from './Attachments';
+import { bgConfirm } from '../lib/dialogs';
 
 function folderPath(folderId: string | null, folders: Folder[]): Folder[] {
   if (!folderId) return [];
@@ -69,7 +70,8 @@ export function ContactView({ contactId }: { contactId: string }) {
 
   const remove = async () => {
     if (!contact) return;
-    if (!window.confirm(`Delete contact "${contact.name}"?`)) return;
+    const ok = await bgConfirm({ title: `Delete contact "${contact.name}"?`, confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     try {
       await db.deleteContact(contact.id);
       dispatch({ type: 'REMOVE_CONTACT', id: contact.id });

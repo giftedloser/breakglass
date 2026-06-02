@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Plus, Star } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
 import { ListRowMenu } from './ListRowMenu';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { AppDetail } from './AppDetail';
@@ -30,11 +31,11 @@ export function AppsModule({ initialFolder }: Props) {
   const selectedId = selection.kind === 'app' ? selection.app_id : null;
 
   const newApp = async () => {
-    const name = window.prompt('New app name (e.g. Adobe, IGT EZPay, Salesforce)');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New app name', placeholder: 'e.g. Adobe, IGT EZPay, Salesforce' });
+    if (!name) return;
     try {
       const app = await db.saveApp({
-        name: name.trim(), folder_id: folderFilter || null, vendor: '', url: '',
+        name, folder_id: folderFilter || null, vendor: '', url: '',
         login_notes: '', criticality: '', tags: [], is_favorite: false,
       });
       dispatch({ type: 'UPSERT_APP', app });
@@ -43,10 +44,10 @@ export function AppsModule({ initialFolder }: Props) {
   };
 
   const newFolder = async () => {
-    const name = window.prompt('New apps folder (e.g. "IGT", "Microsoft")');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New apps folder', placeholder: 'e.g. IGT, Microsoft' });
+    if (!name) return;
     try {
-      const f = await db.saveFolder({ top_category: 'apps', parent_id: null, name: name.trim() });
+      const f = await db.saveFolder({ top_category: 'apps', parent_id: null, name });
       dispatch({ type: 'UPSERT_FOLDER', folder: f });
       setFolderFilter(f.id);
     } catch (err) { toast.error(String(err)); }
@@ -79,18 +80,19 @@ export function AppsModule({ initialFolder }: Props) {
                   } catch (err) { toast.error(String(err)); }
                 };
                 const rename = async () => {
-                  const next = window.prompt('Rename app', a.name);
-                  if (!next?.trim() || next.trim() === a.name) return;
+                  const next = await bgPrompt({ title: 'Rename app', defaultValue: a.name });
+                  if (!next || next === a.name) return;
                   try {
                     const saved = await db.saveApp({
-                      id: a.id, folder_id: a.folder_id, name: next.trim(), vendor: a.vendor, url: a.url,
+                      id: a.id, folder_id: a.folder_id, name: next, vendor: a.vendor, url: a.url,
                       login_notes: a.login_notes, criticality: a.criticality, tags: a.tags, is_favorite: a.is_favorite,
                     });
                     dispatch({ type: 'UPSERT_APP', app: saved });
                   } catch (err) { toast.error(String(err)); }
                 };
                 const remove = async () => {
-                  if (!window.confirm(`Delete app "${a.name}"?`)) return;
+                  const ok = await bgConfirm({ title: `Delete app "${a.name}"?`, confirmLabel: 'Delete', danger: true });
+                  if (!ok) return;
                   try { await db.deleteApp(a.id, false); dispatch({ type: 'REMOVE_APP', id: a.id }); }
                   catch (err) { toast.error(String(err)); }
                 };

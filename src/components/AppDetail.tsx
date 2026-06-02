@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
 import { formatRelativeDate } from '../lib/utils';
 import { Attachments } from './Attachments';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 
 const CRIT_LABEL: Record<string, string> = {
   high: 'High criticality',
@@ -54,9 +55,17 @@ export function AppDetail({ appId }: { appId: string }) {
   const remove = async () => {
     if (!app) return;
     const count = entries.filter((e) => e.app_id === app.id).length;
-    const msg = count > 0 ? `Delete app "${app.name}"? It has ${count} entries.` : `Delete app "${app.name}"?`;
-    if (!window.confirm(msg)) return;
-    const cascade = count > 0 ? window.confirm(`Also delete the ${count} entries under this app?\n\nOK = delete entries too\nCancel = keep them as orphans`) : false;
+    const ok = await bgConfirm({
+      title: `Delete app "${app.name}"?`,
+      message: count > 0 ? `It has ${count} entries.` : undefined,
+      confirmLabel: 'Delete', danger: true,
+    });
+    if (!ok) return;
+    const cascade = count > 0 ? await bgConfirm({
+      title: 'Also delete child entries?',
+      message: `${count} entries are under this app. Delete them too, or keep them as orphans?`,
+      confirmLabel: 'Delete entries', cancelLabel: 'Keep', danger: true,
+    }) : false;
     try {
       await db.deleteApp(app.id, cascade);
       dispatch({ type: 'REMOVE_APP', id: app.id });
@@ -77,11 +86,11 @@ export function AppDetail({ appId }: { appId: string }) {
 
   const addEntry = async () => {
     if (!app) return;
-    const title = window.prompt(`New entry under "${app.name}"`);
-    if (!title?.trim()) return;
+    const title = await bgPrompt({ title: `New entry under "${app.name}"`, placeholder: 'e.g. License renewal' });
+    if (!title) return;
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: 'apps', folder_id: null, app_id: app.id,
+        title, top_category: 'apps', folder_id: null, app_id: app.id,
         kind: 'generic', properties: '{}',
         is_favorite: false, content: '', url: null, tags: [],
       });

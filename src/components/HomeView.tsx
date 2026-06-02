@@ -28,7 +28,7 @@ export function HomeView() {
 
   return (
     <div className="content-pane">
-      <header className="content-header">
+      <header className="page-header">
         <h1 className="content-title">Home</h1>
         <div className="content-sub">Quick access to your pinned and recent items.</div>
       </header>

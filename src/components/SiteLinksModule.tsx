@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { ExternalLink, Pencil, Plus, Star } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
 import { ListRowMenu } from './ListRowMenu';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 import { useApp } from '../context/AppContext';
 import { db, openExternal } from '../lib/invoke';
 import { parseProperties } from '../lib/kinds';
@@ -29,15 +30,15 @@ export function SiteLinksModule({ initialFolder }: Props) {
   }, [entries, folderFilter]);
 
   const newLink = async () => {
-    const title = window.prompt('Title for new link');
-    if (!title?.trim()) return;
-    const url = window.prompt('URL');
-    if (!url?.trim()) return;
-    const description = window.prompt('Description (optional)') ?? '';
+    const title = await bgPrompt({ title: 'Title for new link', placeholder: 'e.g. Okta admin' });
+    if (!title) return;
+    const url = await bgPrompt({ title: 'URL', placeholder: 'https://...' });
+    if (!url) return;
+    const description = (await bgPrompt({ title: 'Description (optional)', placeholder: 'What this link is for' })) ?? '';
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: 'sitelinks', folder_id: folderFilter || null, app_id: null,
-        kind: 'generic', properties: JSON.stringify({ description: description.trim() }),
+        title, top_category: 'sitelinks', folder_id: folderFilter || null, app_id: null,
+        kind: 'generic', properties: JSON.stringify({ description }),
         is_favorite: false, content: '', url: url.trim(), tags: [],
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: e });
@@ -45,10 +46,10 @@ export function SiteLinksModule({ initialFolder }: Props) {
   };
 
   const newFolder = async () => {
-    const name = window.prompt('New site-links folder');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New site-links folder', placeholder: 'e.g. Admin portals' });
+    if (!name) return;
     try {
-      const f = await db.saveFolder({ top_category: 'sitelinks', parent_id: null, name: name.trim() });
+      const f = await db.saveFolder({ top_category: 'sitelinks', parent_id: null, name });
       dispatch({ type: 'UPSERT_FOLDER', folder: f });
       setFolderFilter(f.id);
     } catch (err) { toast.error(String(err)); }
@@ -83,7 +84,8 @@ export function SiteLinksModule({ initialFolder }: Props) {
                 } catch (err) { toast.error(String(err)); }
               };
               const remove = async () => {
-                if (!window.confirm(`Delete link "${e.title}"?`)) return;
+                const ok = await bgConfirm({ title: `Delete link "${e.title}"?`, confirmLabel: 'Delete', danger: true });
+                if (!ok) return;
                 try { await db.deleteEntry(e.id); dispatch({ type: 'REMOVE_ENTRY', id: e.id }); }
                 catch (err) { toast.error(String(err)); }
               };

@@ -21,7 +21,7 @@ export function TitleBar() {
   return (
     <div className="title-bar" data-tauri-drag-region>
       <div className="title-bar-brand" data-tauri-drag-region>
-        <img className="title-bar-icon" src="/src/breakglass.png" alt="" draggable={false} />
+        <img className="title-bar-icon" src="/breakglass.png" alt="" draggable={false} />
         <span className="title-bar-name">BreakGlass</span>
       </div>
       <div className="title-bar-spacer" data-tauri-drag-region />

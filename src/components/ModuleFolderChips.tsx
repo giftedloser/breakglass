@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { Folder } from '../types';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 
 interface Props {
   folders: Folder[];
@@ -24,16 +25,21 @@ export function ModuleFolderChips({ folders, selected, onSelect }: Props) {
   const closeCtx = () => setCtx(null);
 
   const rename = async (f: Folder) => {
-    const next = window.prompt('Rename folder', f.name);
-    if (!next?.trim() || next.trim() === f.name) return;
+    const next = await bgPrompt({ title: 'Rename folder', defaultValue: f.name });
+    if (!next || next === f.name) return;
     try {
-      const updated = await db.renameFolder(f.id, next.trim());
+      const updated = await db.renameFolder(f.id, next);
       dispatch({ type: 'UPSERT_FOLDER', folder: updated });
     } catch (err) { toast.error(String(err)); }
   };
 
   const remove = async (f: Folder) => {
-    if (!window.confirm(`Delete folder "${f.name}"? Items inside survive but lose their folder.`)) return;
+    const ok = await bgConfirm({
+      title: `Delete folder "${f.name}"?`,
+      message: 'Items inside survive but lose their folder.',
+      confirmLabel: 'Delete', danger: true,
+    });
+    if (!ok) return;
     try {
       await db.deleteFolder(f.id);
       dispatch({ type: 'REMOVE_FOLDER', id: f.id });

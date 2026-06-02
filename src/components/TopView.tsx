@@ -1,5 +1,6 @@
 import { ExternalLink, Folder as FolderIcon, Plus } from 'lucide-react';
 import { ListRowMenu } from './ListRowMenu';
+import { bgConfirm, bgPrompt } from '../lib/dialogs';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
 import { TOP_BY_ID } from '../lib/categories';
@@ -17,11 +18,11 @@ export function TopView({ top }: { top: TopCategory }) {
   const directContacts = top === 'contacts' ? contacts.filter((c) => !c.folder_id) : [];
 
   const newEntry = async () => {
-    const title = window.prompt(`New ${meta.label} entry title`);
-    if (!title?.trim()) return;
+    const title = await bgPrompt({ title: `New ${meta.label} entry`, placeholder: 'Title' });
+    if (!title) return;
     try {
       const e = await db.saveEntry({
-        title: title.trim(), top_category: top, folder_id: null, app_id: null,
+        title, top_category: top, folder_id: null, app_id: null,
         kind: defaultKind(top), properties: '{}',
         is_favorite: false, content: '', url: meta.isLinks ? '' : null, tags: [],
       });
@@ -31,11 +32,11 @@ export function TopView({ top }: { top: TopCategory }) {
   };
 
   const newContact = async () => {
-    const name = window.prompt('New contact name');
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: 'New contact name' });
+    if (!name) return;
     try {
       const c = await db.saveContact({
-        name: name.trim(), folder_id: null, role: '', company: '', phone: '', email: '', notes: '',
+        name, folder_id: null, role: '', company: '', phone: '', email: '', notes: '',
         tags: [], is_favorite: false,
       });
       dispatch({ type: 'UPSERT_CONTACT', contact: c });
@@ -44,10 +45,10 @@ export function TopView({ top }: { top: TopCategory }) {
   };
 
   const newFolder = async () => {
-    const name = window.prompt(`New folder under ${meta.label}`);
-    if (!name?.trim()) return;
+    const name = await bgPrompt({ title: `New folder under ${meta.label}` });
+    if (!name) return;
     try {
-      const f = await db.saveFolder({ top_category: top, parent_id: null, name: name.trim() });
+      const f = await db.saveFolder({ top_category: top, parent_id: null, name });
       dispatch({ type: 'UPSERT_FOLDER', folder: f });
       dispatch({ type: 'TOGGLE_EXPANDED', id: `top-${top}`, value: true });
     } catch (err) { toast.error(String(err)); }
@@ -75,13 +76,14 @@ export function TopView({ top }: { top: TopCategory }) {
                 entries.filter((x) => x.folder_id === f.id).length +
                 (top === 'contacts' ? contacts.filter((c) => c.folder_id === f.id).length : 0);
               const renameFolder = async () => {
-                const next = window.prompt('Rename folder', f.name);
-                if (!next?.trim() || next.trim() === f.name) return;
-                try { const upd = await db.renameFolder(f.id, next.trim()); dispatch({ type: 'UPSERT_FOLDER', folder: upd }); }
+                const next = await bgPrompt({ title: 'Rename folder', defaultValue: f.name });
+                if (!next || next === f.name) return;
+                try { const upd = await db.renameFolder(f.id, next); dispatch({ type: 'UPSERT_FOLDER', folder: upd }); }
                 catch (err) { toast.error(String(err)); }
               };
               const deleteFolder = async () => {
-                if (!window.confirm(`Delete folder "${f.name}"?`)) return;
+                const ok = await bgConfirm({ title: `Delete folder "${f.name}"?`, confirmLabel: 'Delete', danger: true });
+                if (!ok) return;
                 try { await db.deleteFolder(f.id); dispatch({ type: 'REMOVE_FOLDER', id: f.id }); }
                 catch (err) { toast.error(String(err)); }
               };
@@ -108,11 +110,11 @@ export function TopView({ top }: { top: TopCategory }) {
           <ul className="row-list">
             {directEntries.sort((a, b) => a.title.localeCompare(b.title)).map((e) => {
               const rename = async () => {
-                const next = window.prompt('Rename entry', e.title);
-                if (!next?.trim() || next.trim() === e.title) return;
+                const next = await bgPrompt({ title: 'Rename entry', defaultValue: e.title });
+                if (!next || next === e.title) return;
                 try {
                   const saved = await db.saveEntry({
-                    id: e.id, title: next.trim(), top_category: e.top_category, folder_id: e.folder_id,
+                    id: e.id, title: next, top_category: e.top_category, folder_id: e.folder_id,
                     app_id: e.app_id, kind: e.kind, properties: e.properties,
                     is_favorite: e.is_favorite, content: e.content, url: e.url, tags: e.tags,
                   });
@@ -120,7 +122,8 @@ export function TopView({ top }: { top: TopCategory }) {
                 } catch (err) { toast.error(String(err)); }
               };
               const remove = async () => {
-                if (!window.confirm(`Delete "${e.title}"?`)) return;
+                const ok = await bgConfirm({ title: `Delete "${e.title}"?`, confirmLabel: 'Delete', danger: true });
+                if (!ok) return;
                 try { await db.deleteEntry(e.id); dispatch({ type: 'REMOVE_ENTRY', id: e.id }); }
                 catch (err) { toast.error(String(err)); }
               };

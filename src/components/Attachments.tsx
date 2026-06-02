@@ -4,6 +4,7 @@ import { Download, File, FileImage, FileText, Paperclip, Trash2, Upload } from '
 import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { db } from '../lib/invoke';
 import { Attachment, AttachmentParent } from '../types';
+import { bgConfirm } from '../lib/dialogs';
 
 interface Props { parentKind: AttachmentParent; parentId: string }
 
@@ -83,7 +84,8 @@ export function Attachments({ parentKind, parentId }: Props) {
   };
 
   const onDelete = async (a: Attachment) => {
-    if (!window.confirm(`Delete attachment "${a.filename}"?`)) return;
+    const ok = await bgConfirm({ title: `Delete attachment "${a.filename}"?`, confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     try {
       await db.deleteAttachment(a.id);
       setItems((cur) => cur.filter((x) => x.id !== a.id));
