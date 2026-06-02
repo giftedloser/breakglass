@@ -64,7 +64,6 @@ Installers land in `src-tauri/target/release/bundle/{msi,nsis}/`.
 
 SQLite file lives at `%APPDATA%/com.breakglass.app/breakglass.db` (Windows). Schema is migrated automatically on startup.
 
-## Branch model
+## License
 
-- `main` — original Codex build (snapshot, untouched)
-- `redesign-tree` — current development. Everything new lives here.
+MIT — see [LICENSE](LICENSE).

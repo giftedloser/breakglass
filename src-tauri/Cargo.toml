@@ -1,10 +1,10 @@
 [package]
 name = "breakglass"
-version = "1.0.0"
-description = "BreakGlass"
-authors = ["BreakGlass"]
-license = ""
-repository = ""
+version = "1.6.0"
+description = "Personal IT reference and runbook tool"
+authors = ["Marsh Jarvis <marshjarv@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/giftedloser/breakglass"
 edition = "2021"
 
 [build-dependencies]
