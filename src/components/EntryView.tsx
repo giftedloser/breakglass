@@ -78,15 +78,17 @@ export function EntryView({ entryId }: { entryId: string }) {
     setContent(entry.content);
     setKind(entry.kind ?? defaultKind(entry.top_category));
     const initProps = parseProperties(entry.properties);
+    const initSections = parseSections(entry.properties);
     setProps(initProps);
-    setSectionsState(parseSections(entry.properties));
+    setSectionsState(initSections);
     // Auto-open edit only when this entry has literally no content yet
     // (fresh from "+ New entry"). Otherwise default to read mode.
     const fieldList = kindDef(entry.top_category, entry.kind).fields;
     const noBody = !entry.content || entry.content === '{}' || entry.content === '';
     const noFields = fieldList.length === 0 || fieldList.every((f) => !initProps[f.key]?.trim());
     const noUrl = !entry.url || entry.url === '';
-    const wholly_empty = noBody && noFields && (isLinks ? noUrl : true);
+    const emptyWeekly = entry.top_category === 'weekly' && initSections.length === 0;
+    const wholly_empty = emptyWeekly || (noBody && noFields && (isLinks ? noUrl : true));
     setEditing(wholly_empty);
     dirtyRef.current = false;
   }, [entryId]);

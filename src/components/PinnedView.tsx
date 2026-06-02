@@ -31,7 +31,7 @@ export function PinnedView() {
       </header>
       <section className="panel">
         {items.length === 0 ? (
-          <div className="empty">Nothing pinned yet. Open an entry or contact and click the star.</div>
+          <div className="empty composed-empty">Nothing pinned yet. Open an entry, app, or contact and click the star.</div>
         ) : (
           <ul className="row-list">
             {items.map((p) => (

@@ -1,11 +1,13 @@
 import { useApp } from '../context/AppContext';
 import { topLabel } from '../lib/categories';
 import { formatRelativeDate } from '../lib/utils';
-import { openExternal } from '../lib/invoke';
-import { ExternalLink, Star } from 'lucide-react';
+import { db, openExternal } from '../lib/invoke';
+import { AlertTriangle, AppWindow, CalendarClock, ClipboardCheck, Plus, Star } from 'lucide-react';
+import { format, startOfWeek } from 'date-fns';
+import toast from 'react-hot-toast';
 
 export function HomeView() {
-  const { entries, contacts, apps, recents, selectEntry, selectContact, selectApp } = useApp();
+  const { entries, contacts, apps, recents, dispatch, selectEntry, selectContact, selectApp, selectTop } = useApp();
   const entriesById = new Map(entries.map((e) => [e.id, e]));
 
   const openItem = (kind: 'entry' | 'contact' | 'app', id: string) => {
@@ -26,17 +28,77 @@ export function HomeView() {
     ...apps.filter((a) => a.is_favorite).map((a) => ({ kind: 'app' as const, id: a.id, title: a.name, top: 'apps' as const, updated_at: a.updated_at })),
   ].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 16);
 
+  const emergencyItems = entries
+    .filter((e) => e.top_category === 'emergency')
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const criticalApps = apps
+    .filter((a) => a.criticality === 'high')
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const weeklyReports = entries
+    .filter((e) => e.top_category === 'weekly')
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const staleCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const reviewItems = entries
+    .filter((e) => new Date(e.updated_at).getTime() < staleCutoff)
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
+    .slice(0, 6);
+
+  const newWeeklyReport = async () => {
+    const weekOf = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    try {
+      const report = await db.saveEntry({
+        title: `Weekly report - ${weekOf}`,
+        top_category: 'weekly',
+        folder_id: null,
+        app_id: null,
+        kind: 'report',
+        properties: JSON.stringify({ week_of: weekOf, sections: '[]' }),
+        is_favorite: false,
+        content: '',
+        url: null,
+        tags: ['weekly'],
+      });
+      dispatch({ type: 'UPSERT_ENTRY', entry: report });
+      void selectEntry(report.id);
+    } catch (err) {
+      toast.error(String(err));
+    }
+  };
+
+  const statCards = [
+    { label: 'Emergency docs', value: emergencyItems.length, icon: AlertTriangle, action: () => selectTop('emergency') },
+    { label: 'Critical apps', value: criticalApps.length, icon: AppWindow, action: () => selectTop('apps') },
+    { label: 'Weekly notes', value: weeklyReports.length, icon: CalendarClock, action: () => selectTop('weekly') },
+    { label: 'Review candidates', value: reviewItems.length, icon: ClipboardCheck, action: () => reviewItems[0] ? void selectEntry(reviewItems[0].id) : selectTop('notes') },
+  ];
+
   return (
     <div className="content-pane">
-      <header className="page-header">
-        <h1 className="content-title">Home</h1>
-        <div className="content-sub">Quick access to your pinned and recent items.</div>
-      </header>
+      <section className="home-command-strip">
+        <div className="home-command-copy">
+          <span className="home-kicker">BreakGlass mode</span>
+          <strong>Start with what matters under pressure.</strong>
+        </div>
+        <div className="home-command-actions">
+          <button className="primary-btn" onClick={() => selectTop('emergency')}><AlertTriangle size={12} /> Emergency</button>
+          <button className="ghost-btn" onClick={newWeeklyReport}><Plus size={12} /> Weekly report</button>
+        </div>
+      </section>
+
+      <section className="home-stats">
+        {statCards.map(({ label, value, icon: Icon, action }) => (
+          <button key={label} className="home-stat" onClick={action}>
+            <Icon size={14} />
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </button>
+        ))}
+      </section>
 
       <section className="panel">
         <h3>Pinned</h3>
         {pinned.length === 0 ? (
-          <div className="empty">Nothing pinned yet. Star an entry or contact to put it here.</div>
+          <div className="empty composed-empty">Nothing pinned yet. Star an entry, app, or contact to keep it one click away.</div>
         ) : (
           <ul className="row-list">
             {pinned.map((p) => (
@@ -44,6 +106,23 @@ export function HomeView() {
                 <Star size={12} className="star-mark" />
                 <span className="row-name">{p.title || '(untitled)'}</span>
                 <span className="row-when">{topLabel(p.top)} · {formatRelativeDate(p.updated_at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="panel">
+        <h3>Weekly reports</h3>
+        {weeklyReports.length === 0 ? (
+          <div className="empty composed-empty">No weekly reports yet. Create one, jot notes all week, then switch to report draft when you are ready.</div>
+        ) : (
+          <ul className="row-list">
+            {weeklyReports.slice(0, 5).map((e) => (
+              <li key={e.id} className="row" onClick={() => selectEntry(e.id)}>
+                <CalendarClock size={12} />
+                <span className="row-name">{e.title || '(untitled)'}</span>
+                <span className="row-when">{formatRelativeDate(e.updated_at)}</span>
               </li>
             ))}
           </ul>

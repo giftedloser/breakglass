@@ -68,7 +68,7 @@ export function SiteLinksModule({ initialFolder }: Props) {
       </div>
 
       {links.length === 0
-        ? <div className="module-empty">No site links yet. Click "New link" to add one.</div>
+        ? <div className="module-empty">No site links here yet. Click "New" to add an admin portal, vendor page, or reference URL.</div>
         : (
           <div className="sitelinks-grid">
             {links.map((e) => {

@@ -68,7 +68,7 @@ export function Sidebar() {
 
   const trees = useMemo(() => buildTrees(folders, entries, apps, contacts), [folders, entries, apps, contacts]);
   const isExpanded = (id: string) => expanded[id] !== false;
-  const toggleExpand = (id: string) => dispatch({ type: 'TOGGLE_EXPANDED', id });
+  const toggleExpand = (id: string) => dispatch({ type: 'TOGGLE_EXPANDED', id, value: !isExpanded(id) });
 
   const isSel = (kind: 'entry' | 'contact' | 'folder' | 'top' | 'app', id: string) => {
     if (kind === 'entry') return selection.kind === 'entry' && selection.entry_id === id;
@@ -234,7 +234,6 @@ export function Sidebar() {
                     <ChevronRight className={`twisty-icon ${open ? 'open' : ''} ${hasKids ? '' : 'invisible'}`} size={12} />
                   </button>
                   <button className="tree-name" onClick={() => selectFolder(fid)} onDoubleClick={() => toggleExpand(fid)} title={n.folder.name}>
-                    <span className="folder-icon">▸</span>
                     <span className="truncate">{n.folder.name}</span>
                   </button>
                   <div className="tree-actions">

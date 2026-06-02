@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Star } from 'lucide-react';
+import { format, startOfWeek } from 'date-fns';
 import { ModuleFolderChips } from './ModuleFolderChips';
 import { ListRowMenu } from './ListRowMenu';
 import { bgConfirm, bgPrompt } from '../lib/dialogs';
@@ -41,15 +42,20 @@ export function StructuredModule({ top, initialFolder }: Props) {
   const selectedId = selection.kind === 'entry' ? selection.entry_id : null;
 
   const newEntry = async (kind?: string) => {
-    const k = kind ?? kindFilter ?? defaultKind(top);
+    const weekOf = top === 'weekly' ? format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd') : '';
+    const k = top === 'weekly' ? 'report' : kind ?? kindFilter ?? defaultKind(top);
     const def = kindDef(top, k);
-    const title = await bgPrompt({ title: `New ${def.label}`, placeholder: 'Name' });
+    const title = await bgPrompt({
+      title: `New ${def.label}`,
+      placeholder: top === 'weekly' ? 'Weekly report title' : 'Name',
+      defaultValue: top === 'weekly' ? `Weekly report - ${weekOf}` : undefined,
+    });
     if (!title) return;
     try {
       const e = await db.saveEntry({
         title, top_category: top, folder_id: folderFilter || null, app_id: null,
-        kind: k, properties: '{}',
-        is_favorite: false, content: '', url: null, tags: [],
+        kind: k, properties: top === 'weekly' ? JSON.stringify({ week_of: weekOf, sections: '[]' }) : '{}',
+        is_favorite: false, content: '', url: null, tags: top === 'weekly' ? ['weekly'] : [],
       });
       dispatch({ type: 'UPSERT_ENTRY', entry: e });
       void selectEntry(e.id);
@@ -91,7 +97,7 @@ export function StructuredModule({ top, initialFolder }: Props) {
       <div className="module-body">
         <div className="module-list">
           {filtered.length === 0
-            ? <div className="module-empty">Nothing here yet.</div>
+            ? <div className="module-empty">{top === 'weekly' ? 'No weekly reports match this view. Start this week, switch folders, or clear the kind filter.' : 'Nothing matches this view yet. Add a record, switch folders, or clear the kind filter.'}</div>
             : filtered.map((e) => {
                 const def = kindDef(top, e.kind);
                 const props = parseProperties(e.properties);
@@ -151,7 +157,7 @@ export function StructuredModule({ top, initialFolder }: Props) {
         <div className="module-detail">
           {selectedId
             ? <EntryView entryId={selectedId} />
-            : <div className="module-empty">Select an item from the list, or click "New" to add one.</div>}
+            : <div className="module-empty">{top === 'weekly' ? 'Select a report, or click "New" to start capturing this week.' : 'Select a record from the list, or click "New" to capture one.'}</div>}
         </div>
       </div>
     </div>

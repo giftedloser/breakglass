@@ -75,7 +75,7 @@ export function ContactsModule({ initialFolder }: Props) {
       <div className="module-body">
         <div className="module-list">
           {filtered.length === 0 ? (
-            <div className="module-empty">No contacts match.</div>
+            <div className="module-empty">No contacts match this folder. Add one here or switch back to All.</div>
           ) : (
             filtered.map((c) => {
               const togglePin = async () => {
@@ -125,7 +125,7 @@ export function ContactsModule({ initialFolder }: Props) {
         <div className="module-detail">
           {selectedId
             ? <ContactView contactId={selectedId} />
-            : <div className="module-empty">Select a contact from the list.</div>}
+            : <div className="module-empty">Select a contact to view phone, email, notes, and attachments.</div>}
         </div>
       </div>
     </div>

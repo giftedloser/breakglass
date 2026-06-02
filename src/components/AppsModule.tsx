@@ -68,7 +68,7 @@ export function AppsModule({ initialFolder }: Props) {
       <div className="module-body">
         <div className="module-list">
           {filtered.length === 0
-            ? <div className="module-empty">No apps yet. Click "New app" to add one.</div>
+            ? <div className="module-empty">No apps match this view. Add one here, switch folders, or return to All.</div>
             : filtered.map((a) => {
                 const togglePin = async () => {
                   try {
@@ -119,7 +119,7 @@ export function AppsModule({ initialFolder }: Props) {
         <div className="module-detail">
           {selectedId
             ? <AppDetail appId={selectedId} />
-            : <div className="module-empty">Select an app from the list, or click "New app" to start.</div>}
+            : <div className="module-empty">Select an app to view access notes, child entries, and attachments.</div>}
         </div>
       </div>
     </div>
