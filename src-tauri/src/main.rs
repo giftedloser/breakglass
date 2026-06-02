@@ -1,3 +1,7 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// ^ Hides the Windows console window in release builds. Without this,
+// double-clicking the installed exe pops a black terminal alongside the app.
+
 mod commands;
 mod db;
 mod models;

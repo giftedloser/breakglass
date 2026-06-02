@@ -1,6 +1,6 @@
 [package]
 name = "breakglass"
-version = "1.6.0"
+version = "1.6.1"
 description = "Personal IT reference and runbook tool"
 authors = ["Marsh Jarvis <marshjarv@gmail.com>"]
 license = "MIT"

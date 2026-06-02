@@ -96,41 +96,57 @@ export function Attachments({ parentKind, parentId }: Props) {
     if (e.dataTransfer.files.length) void uploadFiles(e.dataTransfer.files);
   };
 
+  const empty = !loading && items.length === 0;
+
   return (
-    <section className="panel attachments-panel">
+    <section className={`panel attachments-panel ${empty ? 'is-empty' : ''}`}>
       <div className="body-head">
-        <h3><Paperclip size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Attachments ({items.length})</h3>
-        <button className="ghost-btn" onClick={onPickFiles}><Upload size={12} /> Add file</button>
+        <h3>
+          <Paperclip size={11} className="head-glyph" />
+          Attachments
+          {items.length > 0 && <span className="head-count"> ({items.length})</span>}
+        </h3>
+        <button className="ghost-btn" onClick={onPickFiles}>
+          <Upload size={11} /> Add file
+        </button>
         <input ref={inputRef} type="file" multiple style={{ display: 'none' }}
                onChange={(e) => e.target.files && uploadFiles(e.target.files).then(() => { if (inputRef.current) inputRef.current.value = ''; })} />
       </div>
-      <div className={`attach-drop ${dragOver ? 'is-over' : ''}`}
-           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-           onDragLeave={() => setDragOver(false)}
-           onDrop={onDrop}>
-        {loading ? (
-          <div className="empty">Loading...</div>
-        ) : items.length === 0 ? (
-          <div className="empty">Drop files here or click "Add file". Up to 50 MB each.</div>
-        ) : (
-          <ul className="attach-list">
-            {items.map((a) => {
-              const Icon = iconFor(a.mime_type, a.filename);
-              return (
-                <li key={a.id} className="attach-row">
-                  <button className="attach-name" onClick={() => onOpenInline(a)} title={a.filename}>
-                    <Icon size={14} />
-                    <span className="truncate">{a.filename}</span>
-                  </button>
-                  <span className="attach-size">{humanSize(a.size_bytes)}</span>
-                  <button className="icon-btn" title="Download" onClick={() => onDownload(a)}><Download size={12} /></button>
-                  <button className="icon-btn danger" title="Delete" onClick={() => onDelete(a)}><Trash2 size={12} /></button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      {!empty && (
+        <div className={`attach-drop ${dragOver ? 'is-over' : ''}`}
+             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+             onDragLeave={() => setDragOver(false)}
+             onDrop={onDrop}>
+          {loading ? (
+            <div className="empty">Loading...</div>
+          ) : (
+            <ul className="attach-list">
+              {items.map((a) => {
+                const Icon = iconFor(a.mime_type, a.filename);
+                return (
+                  <li key={a.id} className="attach-row">
+                    <button className="attach-name" onClick={() => onOpenInline(a)} title={a.filename}>
+                      <Icon size={13} />
+                      <span className="truncate">{a.filename}</span>
+                    </button>
+                    <span className="attach-size">{humanSize(a.size_bytes)}</span>
+                    <button className="icon-btn" title="Download" onClick={() => onDownload(a)}><Download size={11} /></button>
+                    <button className="icon-btn danger" title="Delete" onClick={() => onDelete(a)}><Trash2 size={11} /></button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+      {empty && (
+        <div className={`attach-empty-strip ${dragOver ? 'is-over' : ''}`}
+             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+             onDragLeave={() => setDragOver(false)}
+             onDrop={onDrop}>
+          Drop a file here, or click <span className="kbd-like">Add file</span>. Up to 50 MB each.
+        </div>
+      )}
     </section>
   );
 }
