@@ -69,8 +69,8 @@ export function HomeView() {
     <div className="content-pane">
       <section className="home-command-strip">
         <div className="home-command-copy">
-          <span className="home-kicker">BreakGlass mode</span>
-          <strong>Start with what matters under pressure.</strong>
+          <span className="home-kicker">Shortcuts</span>
+          <strong>Emergency access and weekly report.</strong>
         </div>
         <div className="home-command-actions">
           <button className="primary-btn" onClick={() => selectTop('emergency')}><AlertTriangle size={12} /> Emergency</button>
