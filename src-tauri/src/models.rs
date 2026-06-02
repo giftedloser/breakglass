@@ -151,6 +151,8 @@ pub struct ExportData {
     pub apps: Vec<App>,
     pub entries: Vec<Entry>,
     pub contacts: Vec<Contact>,
+    #[serde(default)]
+    pub attachments: Vec<serde_json::Value>,
 }
 
 pub fn parse_tags(s: &str) -> Vec<String> {

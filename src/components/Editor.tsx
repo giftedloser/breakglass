@@ -15,10 +15,10 @@ import TextStyle from '@tiptap/extension-text-style';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { Plugin } from '@tiptap/pm/state';
-import { open as openShell } from '@tauri-apps/plugin-shell';
 import { Bold, CheckSquare, Code, Heading1, Heading2, Heading3, Highlighter, ImageIcon, Italic, LinkIcon, List, ListOrdered, Quote, Redo, TableIcon, Undo } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { bgPrompt } from '../lib/dialogs';
+import { openExternal } from '../lib/invoke';
 
 const pasteImages = () =>
   new Plugin({
@@ -120,7 +120,6 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
 
   const run = (fn: () => void) => () => {
     fn();
-    editor?.chain().focus().run();
   };
 
   const addLink = async () => {
@@ -143,22 +142,22 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
   };
 
   const toolbar = [
-    { icon: Bold, action: run(() => editor?.chain().toggleBold().run()), active: editor?.isActive('bold') },
-    { icon: Italic, action: run(() => editor?.chain().toggleItalic().run()), active: editor?.isActive('italic') },
-    { icon: Heading1, action: run(() => editor?.chain().toggleHeading({ level: 1 }).run()), active: editor?.isActive('heading', { level: 1 }) },
-    { icon: Heading2, action: run(() => editor?.chain().toggleHeading({ level: 2 }).run()), active: editor?.isActive('heading', { level: 2 }) },
-    { icon: Heading3, action: run(() => editor?.chain().toggleHeading({ level: 3 }).run()), active: editor?.isActive('heading', { level: 3 }) },
-    { icon: List, action: run(() => editor?.chain().toggleBulletList().run()), active: editor?.isActive('bulletList') },
-    { icon: ListOrdered, action: run(() => editor?.chain().toggleOrderedList().run()), active: editor?.isActive('orderedList') },
-    { icon: CheckSquare, action: run(() => editor?.chain().toggleTaskList().run()), active: editor?.isActive('taskList') },
-    { icon: Code, action: run(() => editor?.chain().toggleCodeBlock().run()), active: editor?.isActive('codeBlock') },
-    { icon: Quote, action: run(() => editor?.chain().toggleBlockquote().run()), active: editor?.isActive('blockquote') },
-    { icon: TableIcon, action: run(() => editor?.chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()), active: false },
+    { icon: Bold, action: run(() => editor?.chain().focus().toggleBold().run()), active: editor?.isActive('bold') },
+    { icon: Italic, action: run(() => editor?.chain().focus().toggleItalic().run()), active: editor?.isActive('italic') },
+    { icon: Heading1, action: run(() => editor?.chain().focus().toggleHeading({ level: 1 }).run()), active: editor?.isActive('heading', { level: 1 }) },
+    { icon: Heading2, action: run(() => editor?.chain().focus().toggleHeading({ level: 2 }).run()), active: editor?.isActive('heading', { level: 2 }) },
+    { icon: Heading3, action: run(() => editor?.chain().focus().toggleHeading({ level: 3 }).run()), active: editor?.isActive('heading', { level: 3 }) },
+    { icon: List, action: run(() => editor?.chain().focus().toggleBulletList().run()), active: editor?.isActive('bulletList') },
+    { icon: ListOrdered, action: run(() => editor?.chain().focus().toggleOrderedList().run()), active: editor?.isActive('orderedList') },
+    { icon: CheckSquare, action: run(() => editor?.chain().focus().toggleTaskList().run()), active: editor?.isActive('taskList') },
+    { icon: Code, action: run(() => editor?.chain().focus().toggleCodeBlock().run()), active: editor?.isActive('codeBlock') },
+    { icon: Quote, action: run(() => editor?.chain().focus().toggleBlockquote().run()), active: editor?.isActive('blockquote') },
+    { icon: TableIcon, action: run(() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()), active: false },
     { icon: LinkIcon, action: addLink, active: editor?.isActive('link') },
     { icon: ImageIcon, action: addImage, active: false },
-    { icon: Highlighter, action: run(() => editor?.chain().toggleHighlight().run()), active: editor?.isActive('highlight') },
-    { icon: Undo, action: run(() => editor?.chain().undo().run()), active: false },
-    { icon: Redo, action: run(() => editor?.chain().redo().run()), active: false },
+    { icon: Highlighter, action: run(() => editor?.chain().focus().toggleHighlight().run()), active: editor?.isActive('highlight') },
+    { icon: Undo, action: run(() => editor?.chain().focus().undo().run()), active: false },
+    { icon: Redo, action: run(() => editor?.chain().focus().redo().run()), active: false },
   ];
 
   return (
@@ -174,7 +173,7 @@ export function Editor({ content, onChange, editable, placeholder }: { content: 
       )}
       <div ref={shellRef} className="editor-body" onClick={(event) => {
         const anchor = (event.target as HTMLElement).closest('a');
-        if (anchor?.getAttribute('href')) void openShell(anchor.getAttribute('href')!);
+        if (anchor?.getAttribute('href')) void openExternal(anchor.getAttribute('href'));
       }}>
         <EditorContent editor={editor} />
       </div>

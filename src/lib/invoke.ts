@@ -3,9 +3,32 @@ import { open as openShell } from '@tauri-apps/plugin-shell';
 import toast from 'react-hot-toast';
 import { App, AppInput, Attachment, AttachmentParent, Contact, ContactInput, Entry, EntryInput, Folder, FolderInput, RecentItem, SearchHit } from '../types';
 
+const ALLOWED_EXTERNAL_SCHEMES = new Set(['http', 'https', 'mailto', 'tel', 'ssh', 'rdp']);
+
+export function normalizeExternalUrl(raw: string | null | undefined): string | null {
+  const value = raw?.trim();
+  if (!value) return null;
+
+  const looksLikeHostPort = /^[^/\s:]+:\d+(\/|$)/.test(value);
+  const schemeMatch = looksLikeHostPort ? null : value.match(/^([a-z][a-z0-9+.-]*):/i);
+  const localHost = /^(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(value);
+  const candidate = schemeMatch ? value : `${localHost ? 'http' : 'https'}://${value}`;
+
+  try {
+    const parsed = new URL(candidate);
+    const scheme = parsed.protocol.slice(0, -1).toLowerCase();
+    if (!ALLOWED_EXTERNAL_SCHEMES.has(scheme)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function openExternal(url: string | null | undefined) {
   if (!url) { toast.error('No URL set'); return; }
-  try { await openShell(url); }
+  const safeUrl = normalizeExternalUrl(url);
+  if (!safeUrl) { toast.error('Unsupported or invalid URL'); return; }
+  try { await openShell(safeUrl); }
   catch (e) { toast.error(String(e)); }
 }
 
@@ -67,5 +90,5 @@ export const db = {
     invoke<{ folders: number; entries: number; contacts: number; apps: number; attachments: number }>('import_category', { category, path }),
   exportJson: () => invoke<string>('export_json'),
   importJson: (path: string) =>
-    invoke<{ folders_imported: number; apps_imported: number; entries_imported: number; contacts_imported: number }>('import_json', { path }),
+    invoke<{ folders_imported: number; apps_imported: number; entries_imported: number; contacts_imported: number; attachments_imported: number }>('import_json', { path }),
 };

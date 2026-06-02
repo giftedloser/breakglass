@@ -64,6 +64,11 @@ export function EntryView({ entryId }: { entryId: string }) {
   const [savedFlash, setSavedFlash] = useState(false);
   const isLinks = entry ? TOP_BY_ID[entry.top_category].isLinks : false;
   const dirtyRef = useRef(false);
+  const latestDraftRef = useRef({ title, tags, url, content, kind, props, sections, isLinks });
+
+  useEffect(() => {
+    latestDraftRef.current = { title, tags, url, content, kind, props, sections, isLinks };
+  }, [title, tags, url, content, kind, props, sections, isLinks]);
 
   useEffect(() => {
     if (!entry) return;
@@ -130,12 +135,17 @@ export function EntryView({ entryId }: { entryId: string }) {
   useEffect(() => {
     return () => {
       if (dirtyRef.current && entry) {
+        const draft = latestDraftRef.current;
+        const propsToSave = { ...draft.props };
+        if (entry.top_category === 'weekly') {
+          propsToSave.sections = JSON.stringify(draft.sections);
+        }
         void db.saveEntry({
-          id: entry.id, title: entry.title, top_category: entry.top_category,
+          id: entry.id, title: draft.title.trim() || '(untitled)', top_category: entry.top_category,
           folder_id: entry.folder_id, app_id: entry.app_id,
-          kind: entry.kind, properties: entry.properties,
+          kind: draft.kind, properties: stringifyProperties(propsToSave),
           is_favorite: entry.is_favorite,
-          content, url: entry.url, tags: entry.tags,
+          content: draft.content, url: draft.isLinks ? (draft.url || '') : entry.url, tags: draft.tags,
         }).catch((err) => toast.error(`Couldn't save: ${err}`));
       }
     };

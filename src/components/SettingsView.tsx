@@ -64,7 +64,7 @@ export function SettingsView() {
       const res = await db.importJson(path);
       await refresh();
       await reloadCounts();
-      toast.success(`Imported ${res.folders_imported} folders, ${res.apps_imported} apps, ${res.entries_imported} entries, ${res.contacts_imported} contacts`);
+      toast.success(`Imported ${res.folders_imported} folders, ${res.apps_imported} apps, ${res.entries_imported} entries, ${res.contacts_imported} contacts, ${res.attachments_imported} attachments`);
     } catch (err) { toast.error(String(err)); }
   };
 
@@ -122,7 +122,7 @@ export function SettingsView() {
         <div className="settings-row">
           <div className="settings-row-main">
             <div className="settings-label">All data in one file</div>
-            <div className="settings-desc">Folders, apps, entries, contacts. Attachments are NOT included in the full backup — use per-category export above to keep attachments.</div>
+            <div className="settings-desc">Folders, apps, entries, contacts, and attachments.</div>
           </div>
           <div className="settings-actions">
             <button className="ghost-btn" onClick={exportAll}><Download size={11} /> Export all</button>

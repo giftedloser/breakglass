@@ -79,7 +79,15 @@ export function Attachments({ parentKind, parentId }: Props) {
     try {
       const b64 = await db.readAttachmentB64(a.id);
       const w = window.open();
-      if (w) w.document.write(`<title>${a.filename}</title><body style="margin:0;background:#1a1816;display:grid;place-items:center;height:100vh"><img src="data:${a.mime_type};base64,${b64}" style="max-width:100vw;max-height:100vh"/></body>`);
+      if (w) {
+        w.document.title = a.filename;
+        w.document.body.style.cssText = 'margin:0;background:#1a1816;display:grid;place-items:center;height:100vh';
+        const img = w.document.createElement('img');
+        img.src = `data:${a.mime_type};base64,${b64}`;
+        img.alt = a.filename;
+        img.style.cssText = 'max-width:100vw;max-height:100vh';
+        w.document.body.replaceChildren(img);
+      }
     } catch (err) { toast.error(String(err)); }
   };
 

@@ -20,7 +20,9 @@
       "decorations": false,
       "transparent": false
     }],
-    "security": { "csp": null }
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:1420 http://127.0.0.1:1420 ws://localhost:1420 ws://127.0.0.1:1420; object-src 'none'; base-uri 'self'; form-action 'none'"
+    }
   },
   "bundle": {
     "active": true,

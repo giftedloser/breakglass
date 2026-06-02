@@ -768,6 +768,28 @@ fn collect_attachments_for(conn: &Connection, col: &str, ids: &[String]) -> Resu
     rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
 }
 
+fn collect_all_attachments(conn: &Connection) -> Result<Vec<serde_json::Value>, String> {
+    let mut stmt = conn.prepare(
+        "SELECT id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, data, created_at
+         FROM attachments ORDER BY filename"
+    ).map_err(|e| e.to_string())?;
+    let rows = stmt.query_map([], |r| {
+        let blob: Vec<u8> = r.get(7)?;
+        Ok(serde_json::json!({
+            "id": r.get::<_, String>(0)?,
+            "entry_id": r.get::<_, Option<String>>(1)?,
+            "app_id": r.get::<_, Option<String>>(2)?,
+            "contact_id": r.get::<_, Option<String>>(3)?,
+            "filename": r.get::<_, String>(4)?,
+            "mime_type": r.get::<_, String>(5)?,
+            "size_bytes": r.get::<_, i64>(6)?,
+            "data_base64": general_purpose::STANDARD.encode(&blob),
+            "created_at": r.get::<_, String>(8)?,
+        }))
+    }).map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn export_category(app: AppHandle, state: State<Mutex<Connection>>, category: String) -> Result<String, String> {
     if !valid_top(&category) { return Err(format!("invalid category: {category}")); }
@@ -845,7 +867,8 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
         return Err(format!("File category is '{file_category}', not '{category}'. Refusing to import."));
     }
 
-    let conn = state.lock().map_err(|e| e.to_string())?;
+    let mut conn = state.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
     let mut folders_in = 0; let mut entries_in = 0; let mut contacts_in = 0; let mut apps_in = 0; let mut atts_in = 0;
 
     if let Some(arr) = payload.get("folders").and_then(|v| v.as_array()) {
@@ -857,7 +880,7 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
             let created_at = f.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
             let updated_at = f.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
             if id.is_empty() || name.is_empty() { continue; }
-            conn.execute(
+            tx.execute(
                 "INSERT INTO folders (id,parent_id,top_category,name,position,created_at,updated_at)
                  VALUES (?1,?2,?3,?4,?5,?6,?7)
                  ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id, name=excluded.name,
@@ -884,7 +907,7 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
                 let is_fav = c.get("is_favorite").and_then(|v| v.as_bool()).unwrap_or(false) as i64;
                 let created_at = c.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
                 let updated_at = c.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
-                conn.execute(
+                tx.execute(
                     "INSERT INTO contacts (id,folder_id,name,role,company,phone,email,notes,tags,is_favorite,position,created_at,updated_at)
                      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,0,?11,?12)
                      ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id, name=excluded.name,
@@ -911,7 +934,7 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
                 let is_fav = a.get("is_favorite").and_then(|v| v.as_bool()).unwrap_or(false) as i64;
                 let created_at = a.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
                 let updated_at = a.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
-                conn.execute(
+                tx.execute(
                     "INSERT INTO apps (id,folder_id,name,vendor,url,login_notes,criticality,tags,is_favorite,position,created_at,updated_at)
                      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,0,?10,?11)
                      ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id, name=excluded.name,
@@ -940,7 +963,7 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
             let tags = e.get("tags").map(|v| v.to_string()).unwrap_or_else(|| "[]".into());
             let created_at = e.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
             let updated_at = e.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
-            conn.execute(
+            tx.execute(
                 "INSERT INTO entries (id,title,top_category,folder_id,app_id,kind,properties,is_favorite,content,url,tags,position,created_at,updated_at)
                  VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,0,?12,?13)
                  ON CONFLICT(id) DO UPDATE SET title=excluded.title, folder_id=excluded.folder_id,
@@ -965,7 +988,10 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
             let mime_type = a.get("mime_type").and_then(|v| v.as_str()).unwrap_or("");
             let created_at = a.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
             let Ok(bytes) = general_purpose::STANDARD.decode(b64.as_bytes()) else { continue; };
-            conn.execute(
+            if bytes.len() > 50 * 1024 * 1024 {
+                return Err(format!("Attachment '{filename}' exceeds 50 MB limit"));
+            }
+            tx.execute(
                 "INSERT INTO attachments (id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, data, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
                  ON CONFLICT(id) DO UPDATE SET filename=excluded.filename, mime_type=excluded.mime_type,
@@ -975,6 +1001,8 @@ pub fn import_category(state: State<Mutex<Connection>>, category: String, path: 
             atts_in += 1;
         }
     }
+
+    tx.commit().map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "folders": folders_in, "entries": entries_in, "contacts": contacts_in,
@@ -994,8 +1022,10 @@ pub fn export_json(app: AppHandle, state: State<Mutex<Connection>>) -> Result<St
     let folders = list_folders(state.clone())?;
     let apps = list_apps(state.clone())?;
     let entries = list_entries(state.clone())?;
-    let contacts = list_contacts(state)?;
-    let data = ExportData { version: 3, exported_at: now(), folders, apps, entries, contacts };
+    let contacts = list_contacts(state.clone())?;
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let attachments = collect_all_attachments(&conn)?;
+    let data = ExportData { version: 4, exported_at: now(), folders, apps, entries, contacts, attachments };
     let json = serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
@@ -1005,43 +1035,109 @@ pub fn export_json(app: AppHandle, state: State<Mutex<Connection>>) -> Result<St
 pub fn import_json(state: State<Mutex<Connection>>, path: String) -> Result<serde_json::Value, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     let data: ExportData = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-    if data.version < 2 || data.version > 3 { return Err("Unsupported backup version".into()); }
+    if data.version < 2 || data.version > 4 { return Err("Unsupported backup version".into()); }
     let mut folders_imported = 0;
     let mut apps_imported = 0;
     let mut entries_imported = 0;
     let mut contacts_imported = 0;
+    let mut attachments_imported = 0;
+
+    let mut conn = state.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
     for f in data.folders {
-        save_folder(state.clone(), FolderInput {
-            id: Some(f.id), parent_id: f.parent_id, top_category: f.top_category, name: f.name,
-        })?;
+        if !valid_top(&f.top_category) { return Err(format!("invalid top_category: {}", f.top_category)); }
+        if f.id.is_empty() || f.name.trim().is_empty() { continue; }
+        tx.execute(
+            "INSERT INTO folders (id,parent_id,top_category,name,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7)
+             ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id, top_category=excluded.top_category,
+             name=excluded.name, position=excluded.position, updated_at=excluded.updated_at",
+            params![f.id, f.parent_id, f.top_category, f.name.trim(), f.position, f.created_at, f.updated_at],
+        ).map_err(|e| e.to_string())?;
         folders_imported += 1;
     }
+
     for a in data.apps {
-        save_app(state.clone(), AppInput {
-            id: Some(a.id), folder_id: a.folder_id, name: a.name, vendor: a.vendor, url: a.url,
-            login_notes: a.login_notes, criticality: a.criticality, tags: a.tags, is_favorite: a.is_favorite,
-        })?;
+        if a.id.is_empty() || a.name.trim().is_empty() { continue; }
+        tx.execute(
+            "INSERT INTO apps (id,folder_id,name,vendor,url,login_notes,criticality,tags,is_favorite,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+             ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id, name=excluded.name,
+             vendor=excluded.vendor, url=excluded.url, login_notes=excluded.login_notes,
+             criticality=excluded.criticality, tags=excluded.tags, is_favorite=excluded.is_favorite,
+             position=excluded.position, updated_at=excluded.updated_at",
+            params![a.id, a.folder_id, a.name.trim(), a.vendor.trim(), a.url.trim(), a.login_notes,
+                    a.criticality, serialize_tags(&a.tags), a.is_favorite as i64,
+                    a.position, a.created_at, a.updated_at],
+        ).map_err(|e| e.to_string())?;
         apps_imported += 1;
     }
+
     for e in data.entries {
-        save_entry(state.clone(), EntryInput {
-            id: Some(e.id), title: e.title, top_category: e.top_category, folder_id: e.folder_id,
-            app_id: e.app_id, kind: e.kind, properties: e.properties,
-            is_favorite: e.is_favorite, content: e.content, url: e.url, tags: e.tags,
-        })?;
+        if !valid_top(&e.top_category) { return Err(format!("invalid top_category: {}", e.top_category)); }
+        if e.id.is_empty() || e.title.trim().is_empty() { continue; }
+        tx.execute(
+            "INSERT INTO entries (id,title,top_category,folder_id,app_id,kind,properties,is_favorite,content,url,tags,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)
+             ON CONFLICT(id) DO UPDATE SET title=excluded.title, top_category=excluded.top_category,
+             folder_id=excluded.folder_id, app_id=excluded.app_id, kind=excluded.kind,
+             properties=excluded.properties, is_favorite=excluded.is_favorite, content=excluded.content,
+             url=excluded.url, tags=excluded.tags, position=excluded.position, updated_at=excluded.updated_at",
+            params![e.id, e.title.trim(), e.top_category, e.folder_id, e.app_id, e.kind,
+                    e.properties, e.is_favorite as i64, e.content, e.url, serialize_tags(&e.tags),
+                    e.position, e.created_at, e.updated_at],
+        ).map_err(|e| e.to_string())?;
         entries_imported += 1;
     }
+
     for c in data.contacts {
-        save_contact(state.clone(), ContactInput {
-            id: Some(c.id), folder_id: c.folder_id, name: c.name, role: c.role, company: c.company,
-            phone: c.phone, email: c.email, notes: c.notes, tags: c.tags, is_favorite: c.is_favorite,
-        })?;
+        if c.id.is_empty() || c.name.trim().is_empty() { continue; }
+        tx.execute(
+            "INSERT INTO contacts (id,folder_id,name,role,company,phone,email,notes,tags,is_favorite,position,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
+             ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id, name=excluded.name,
+             role=excluded.role, company=excluded.company, phone=excluded.phone, email=excluded.email,
+             notes=excluded.notes, tags=excluded.tags, is_favorite=excluded.is_favorite,
+             position=excluded.position, updated_at=excluded.updated_at",
+            params![c.id, c.folder_id, c.name.trim(), c.role.trim(), c.company.trim(),
+                    c.phone.trim(), c.email.trim(), c.notes, serialize_tags(&c.tags),
+                    c.is_favorite as i64, c.position, c.created_at, c.updated_at],
+        ).map_err(|e| e.to_string())?;
         contacts_imported += 1;
     }
+
+    for a in data.attachments {
+        let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let filename = a.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+        let b64 = a.get("data_base64").and_then(|v| v.as_str()).unwrap_or("");
+        if id.is_empty() || filename.is_empty() || b64.is_empty() { continue; }
+        let entry_id = a.get("entry_id").and_then(|v| v.as_str());
+        let app_id = a.get("app_id").and_then(|v| v.as_str());
+        let contact_id = a.get("contact_id").and_then(|v| v.as_str());
+        let mime_type = a.get("mime_type").and_then(|v| v.as_str()).unwrap_or("");
+        let created_at = a.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+        let Ok(bytes) = general_purpose::STANDARD.decode(b64.as_bytes()) else { continue; };
+        if bytes.len() > 50 * 1024 * 1024 {
+            return Err(format!("Attachment '{filename}' exceeds 50 MB limit"));
+        }
+        tx.execute(
+            "INSERT INTO attachments (id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, data, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(id) DO UPDATE SET filename=excluded.filename, mime_type=excluded.mime_type,
+             size_bytes=excluded.size_bytes, data=excluded.data",
+            params![id, entry_id, app_id, contact_id, filename, mime_type, bytes.len() as i64, bytes, created_at],
+        ).map_err(|e| e.to_string())?;
+        attachments_imported += 1;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+
     Ok(serde_json::json!({
         "folders_imported": folders_imported,
         "apps_imported": apps_imported,
         "entries_imported": entries_imported,
         "contacts_imported": contacts_imported,
+        "attachments_imported": attachments_imported,
     }))
 }
