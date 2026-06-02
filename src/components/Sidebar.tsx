@@ -362,7 +362,8 @@ export function Sidebar() {
         <button className="footer-btn" onClick={() => dispatch({ type: 'TOGGLE_THEME' })} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
         </button>
-        <button className="footer-btn" onClick={() => dispatch({ type: 'TOGGLE_EXPORT', value: true })} title="Backup / restore">
+        <button className={`footer-btn ${selection.kind === 'settings' ? 'is-selected' : ''}`}
+                onClick={() => dispatch({ type: 'SELECT', target: { kind: 'settings' } })} title="Settings">
           <SettingsIcon size={13} />
         </button>
       </div>

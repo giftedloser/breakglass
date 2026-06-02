@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ExternalLink, Plus, Star } from 'lucide-react';
+import { ExternalLink, Pencil, Plus, Star } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
 import { ListRowMenu } from './ListRowMenu';
 import { useApp } from '../context/AppContext';
@@ -104,7 +104,7 @@ export function SiteLinksModule({ initialFolder }: Props) {
                   </div>
                   <div className="sl-url">{e.url || 'no URL'}</div>
                   {desc && <div className="sl-desc">{desc}</div>}
-                  <button className="sl-edit" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
+                  <button className="sl-edit" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }} title="Edit"><Pencil size={11} /></button>
                 </ListRowMenu>
               );
             })}

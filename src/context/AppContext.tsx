@@ -12,7 +12,6 @@ interface AppState {
   selection: SelectionTarget;
   expanded: Record<string, boolean>;
   searchOpen: boolean;
-  exportOpen: boolean;
   theme: 'dark' | 'light';
   isLoading: boolean;
 }
@@ -24,7 +23,6 @@ type Action =
   | { type: 'TOGGLE_EXPANDED'; id: string; value?: boolean }
   | { type: 'EXPAND_PATH'; ids: string[] }
   | { type: 'TOGGLE_SEARCH'; value?: boolean }
-  | { type: 'TOGGLE_EXPORT'; value?: boolean }
   | { type: 'TOGGLE_THEME' }
   | { type: 'SET_LOADING'; value: boolean }
   | { type: 'UPSERT_FOLDER'; folder: Folder }
@@ -41,7 +39,6 @@ const initial: AppState = {
   selection: { kind: 'home' },
   expanded: JSON.parse(localStorage.getItem('bg-expanded') || '{}'),
   searchOpen: false,
-  exportOpen: false,
   theme: (localStorage.getItem('bg-theme') as 'dark' | 'light') || 'dark',
   isLoading: true,
 };
@@ -67,8 +64,6 @@ function reducer(s: AppState, a: Action): AppState {
     }
     case 'TOGGLE_SEARCH':
       return { ...s, searchOpen: a.value ?? !s.searchOpen };
-    case 'TOGGLE_EXPORT':
-      return { ...s, exportOpen: a.value ?? !s.exportOpen };
     case 'TOGGLE_THEME': {
       const theme = s.theme === 'dark' ? 'light' : 'dark';
       localStorage.setItem('bg-theme', theme);

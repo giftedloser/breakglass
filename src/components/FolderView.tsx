@@ -1,4 +1,5 @@
 import { ExternalLink, Folder as FolderIcon, Plus } from 'lucide-react';
+import { ListRowMenu } from './ListRowMenu';
 import toast from 'react-hot-toast';
 import { useApp } from '../context/AppContext';
 import { TOP_BY_ID, topLabel } from '../lib/categories';
@@ -100,12 +101,28 @@ export function FolderView({ folderId }: { folderId: string }) {
                 folders.filter((x) => x.parent_id === f.id).length +
                 entries.filter((x) => x.folder_id === f.id).length +
                 (top === 'contacts' ? contacts.filter((c) => c.folder_id === f.id).length : 0);
+              const renameFolder = async () => {
+                const next = window.prompt('Rename folder', f.name);
+                if (!next?.trim() || next.trim() === f.name) return;
+                try { const upd = await db.renameFolder(f.id, next.trim()); dispatch({ type: 'UPSERT_FOLDER', folder: upd }); }
+                catch (err) { toast.error(String(err)); }
+              };
+              const deleteFolder = async () => {
+                if (!window.confirm(`Delete folder "${f.name}"?`)) return;
+                try { await db.deleteFolder(f.id); dispatch({ type: 'REMOVE_FOLDER', id: f.id }); }
+                catch (err) { toast.error(String(err)); }
+              };
               return (
-                <li key={f.id} className="row" onClick={() => selectFolder(f.id)}>
+                <ListRowMenu key={f.id} className="row" onClick={() => selectFolder(f.id)}
+                  items={[
+                    { label: 'Open', onClick: () => selectFolder(f.id) },
+                    { label: 'Rename', onClick: renameFolder },
+                    { label: 'Delete', onClick: deleteFolder, danger: true },
+                  ]}>
                   <FolderIcon size={12} />
                   <span className="row-name">{f.name}</span>
                   <span className="row-when">{kidCount} item{kidCount === 1 ? '' : 's'}</span>
-                </li>
+                </ListRowMenu>
               );
             })}
           </ul>
@@ -116,20 +133,56 @@ export function FolderView({ folderId }: { folderId: string }) {
         <section className="panel">
           <h3>Entries</h3>
           <ul className="row-list">
-            {dirEntries.sort((a, b) => a.title.localeCompare(b.title)).map((e) => (
-              meta.isLinks ? (
-                <li key={e.id} className="row" onClick={() => openExternal(e.url)} title={e.url ?? ''}>
-                  <ExternalLink size={12} />
-                  <span className="row-name">{e.title || '(untitled)'}</span>
-                  <button className="row-edit" title="Edit entry" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
-                </li>
-              ) : (
-                <li key={e.id} className="row" onClick={() => selectEntry(e.id)}>
+            {dirEntries.sort((a, b) => a.title.localeCompare(b.title)).map((e) => {
+              const rename = async () => {
+                const next = window.prompt('Rename entry', e.title);
+                if (!next?.trim() || next.trim() === e.title) return;
+                try {
+                  const saved = await db.saveEntry({
+                    id: e.id, title: next.trim(), top_category: e.top_category, folder_id: e.folder_id,
+                    app_id: e.app_id, kind: e.kind, properties: e.properties,
+                    is_favorite: e.is_favorite, content: e.content, url: e.url, tags: e.tags,
+                  });
+                  dispatch({ type: 'UPSERT_ENTRY', entry: saved });
+                } catch (err) { toast.error(String(err)); }
+              };
+              const remove = async () => {
+                if (!window.confirm(`Delete "${e.title}"?`)) return;
+                try { await db.deleteEntry(e.id); dispatch({ type: 'REMOVE_ENTRY', id: e.id }); }
+                catch (err) { toast.error(String(err)); }
+              };
+              const togglePin = async () => {
+                try {
+                  const saved = await db.saveEntry({
+                    id: e.id, title: e.title, top_category: e.top_category, folder_id: e.folder_id,
+                    app_id: e.app_id, kind: e.kind, properties: e.properties,
+                    is_favorite: !e.is_favorite, content: e.content, url: e.url, tags: e.tags,
+                  });
+                  dispatch({ type: 'UPSERT_ENTRY', entry: saved });
+                } catch (err) { toast.error(String(err)); }
+              };
+              const baseItems = [
+                { label: e.is_favorite ? 'Unpin' : 'Pin', onClick: togglePin },
+                { label: 'Rename', onClick: rename },
+                { label: 'Delete', onClick: remove, danger: true as const },
+              ];
+              if (meta.isLinks) {
+                return (
+                  <ListRowMenu key={e.id} className="row" onClick={() => openExternal(e.url)}
+                    items={[{ label: 'Open URL', onClick: () => openExternal(e.url) }, { label: 'Edit', onClick: () => selectEntry(e.id) }, ...baseItems]}>
+                    <ExternalLink size={12} />
+                    <span className="row-name">{e.title || '(untitled)'}</span>
+                    <button className="row-edit" title="Edit entry" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }}>edit</button>
+                  </ListRowMenu>
+                );
+              }
+              return (
+                <ListRowMenu key={e.id} className="row" onClick={() => selectEntry(e.id)} items={baseItems}>
                   <span className="row-name">{e.title || '(untitled)'}</span>
                   <span className="row-when">{formatRelativeDate(e.updated_at)}</span>
-                </li>
-              )
-            ))}
+                </ListRowMenu>
+              );
+            })}
             {dirContacts.sort((a, b) => a.name.localeCompare(b.name)).map((c) => (
               <li key={c.id} className="row" onClick={() => selectContact(c.id)}>
                 <span className="row-name">{c.name}</span>

@@ -153,4 +153,5 @@ export type SelectionTarget =
   | { kind: 'folder'; folder_id: string }
   | { kind: 'entry'; entry_id: string }
   | { kind: 'contact'; contact_id: string }
-  | { kind: 'app'; app_id: string };
+  | { kind: 'app'; app_id: string }
+  | { kind: 'settings' };

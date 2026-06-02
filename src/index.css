@@ -769,3 +769,45 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* settings page */
+.settings-pane { max-width: 760px; }
+.content-sub { color: var(--text-muted); font-size: 12.5px; margin: -4px 0 14px; }
+.settings-row { display: flex; align-items: center; gap: 16px; }
+.settings-row-main { flex: 1; min-width: 0; }
+.settings-label { font-size: 13px; color: var(--text); margin-bottom: 2px; }
+.settings-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+.settings-help { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
+.settings-actions { display: inline-flex; gap: 6px; }
+.settings-table {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+}
+.settings-table th {
+  text-align: left; color: var(--text-dim); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;
+  padding: 4px 8px; border-bottom: 1px solid var(--line);
+}
+.settings-table td {
+  padding: 6px 8px; border-bottom: 1px solid var(--line-soft);
+  color: var(--text);
+}
+.settings-table tr:last-child td { border-bottom: 0; }
+.settings-count { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.footer-btn.is-selected {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--text);
+}
+
+/* Light mode: explicit overrides for things hardcoded to dark elsewhere */
+html.light .code-block { background: #f3efe7; }
+html.light .code-block code { color: #2a2520; }
+html.light .code-block pre { background: transparent; }
+html.light .code-head { background: rgba(0,0,0,0.04); }
+html.light .code-input {
+  background: #f3efe7 !important;
+  color: #2a2520 !important;
+}
+html.light ::-webkit-scrollbar-thumb { background: #d5cfc3; }
+html.light ::-webkit-scrollbar-thumb:hover { background: #b5ad9f; }
+html.light .tb-btn.tb-close:hover { background: #c0392b; color: white; }
+html.light .saved-flash { color: #3d7a4e; }

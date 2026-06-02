@@ -715,7 +715,274 @@ pub fn seed_demo_data(state: State<Mutex<Connection>>) -> Result<serde_json::Val
     Ok(serde_json::json!({ "ok": true }))
 }
 
-// ─────────────── export / import ───────────────
+// ─────────────── category counts ───────────────
+
+#[tauri::command]
+pub fn category_counts(state: State<Mutex<Connection>>) -> Result<serde_json::Value, String> {
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let mut out = serde_json::Map::new();
+
+    let entry_top_counts: Vec<(String, i64)> = {
+        let mut stmt = conn.prepare("SELECT top_category, COUNT(*) FROM entries GROUP BY top_category").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).map_err(|e| e.to_string())?;
+        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?
+    };
+    for (top, n) in entry_top_counts { out.insert(top, serde_json::json!(n)); }
+
+    let contacts: i64 = conn.query_row("SELECT COUNT(*) FROM contacts", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    out.insert("contacts".into(), serde_json::json!(contacts));
+    let apps: i64 = conn.query_row("SELECT COUNT(*) FROM apps", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+    out.insert("apps".into(), serde_json::json!(apps));
+
+    for top in TOP_CATEGORIES {
+        if !out.contains_key(*top) { out.insert((*top).into(), serde_json::json!(0)); }
+    }
+    Ok(serde_json::Value::Object(out))
+}
+
+// ─────────────── per-category export / import ───────────────
+
+fn collect_attachments_for(conn: &Connection, col: &str, ids: &[String]) -> Result<Vec<serde_json::Value>, String> {
+    if ids.is_empty() { return Ok(Vec::new()); }
+    let placeholders = ids.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect::<Vec<_>>().join(",");
+    let sql = format!(
+        "SELECT id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, data, created_at
+         FROM attachments WHERE {col} IN ({placeholders})"
+    );
+    let id_params: Vec<&dyn rusqlite::ToSql> = ids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(id_params), |r| {
+        let blob: Vec<u8> = r.get(7)?;
+        Ok(serde_json::json!({
+            "id": r.get::<_, String>(0)?,
+            "entry_id": r.get::<_, Option<String>>(1)?,
+            "app_id": r.get::<_, Option<String>>(2)?,
+            "contact_id": r.get::<_, Option<String>>(3)?,
+            "filename": r.get::<_, String>(4)?,
+            "mime_type": r.get::<_, String>(5)?,
+            "size_bytes": r.get::<_, i64>(6)?,
+            "data_base64": general_purpose::STANDARD.encode(&blob),
+            "created_at": r.get::<_, String>(8)?,
+        }))
+    }).map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn export_category(app: AppHandle, state: State<Mutex<Connection>>, category: String) -> Result<String, String> {
+    if !valid_top(&category) { return Err(format!("invalid category: {category}")); }
+    let default_name = format!("breakglass-{}-{}.json", category, Utc::now().format("%Y%m%d-%H%M%S"));
+    let path = app.dialog().file().add_filter("JSON", &["json"])
+        .set_file_name(&default_name).blocking_save_file()
+        .ok_or_else(|| "Export cancelled".to_string())?
+        .into_path().map_err(|e| e.to_string())?;
+
+    let conn = state.lock().map_err(|e| e.to_string())?;
+
+    let folders: Vec<Folder> = {
+        let mut stmt = conn.prepare("SELECT * FROM folders WHERE top_category = ?1 ORDER BY position, name").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![category], row_to_folder).map_err(|e| e.to_string())?;
+        rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?
+    };
+
+    let payload = if category == "contacts" {
+        let contacts: Vec<Contact> = {
+            let mut stmt = conn.prepare("SELECT * FROM contacts ORDER BY name").map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], row_to_contact).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?
+        };
+        let ids: Vec<String> = contacts.iter().map(|c| c.id.clone()).collect();
+        let atts = collect_attachments_for(&conn, "contact_id", &ids)?;
+        serde_json::json!({
+            "version": 1, "category": "contacts", "exported_at": now(),
+            "folders": folders, "contacts": contacts, "attachments": atts,
+        })
+    } else if category == "apps" {
+        let apps: Vec<App> = {
+            let mut stmt = conn.prepare("SELECT * FROM apps ORDER BY name").map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], row_to_app).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?
+        };
+        let entries: Vec<Entry> = {
+            let mut stmt = conn.prepare("SELECT * FROM entries WHERE top_category = 'apps' ORDER BY title").map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], row_to_entry).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?
+        };
+        let app_ids: Vec<String> = apps.iter().map(|a| a.id.clone()).collect();
+        let entry_ids: Vec<String> = entries.iter().map(|e| e.id.clone()).collect();
+        let mut atts = collect_attachments_for(&conn, "app_id", &app_ids)?;
+        atts.extend(collect_attachments_for(&conn, "entry_id", &entry_ids)?);
+        serde_json::json!({
+            "version": 1, "category": "apps", "exported_at": now(),
+            "folders": folders, "apps": apps, "entries": entries, "attachments": atts,
+        })
+    } else {
+        let entries: Vec<Entry> = {
+            let mut stmt = conn.prepare("SELECT * FROM entries WHERE top_category = ?1 ORDER BY title").map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(params![category], row_to_entry).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?
+        };
+        let ids: Vec<String> = entries.iter().map(|e| e.id.clone()).collect();
+        let atts = collect_attachments_for(&conn, "entry_id", &ids)?;
+        serde_json::json!({
+            "version": 1, "category": category, "exported_at": now(),
+            "folders": folders, "entries": entries, "attachments": atts,
+        })
+    };
+
+    let json = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn import_category(state: State<Mutex<Connection>>, category: String, path: String) -> Result<serde_json::Value, String> {
+    if !valid_top(&category) { return Err(format!("invalid category: {category}")); }
+    let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let payload: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let file_category = payload.get("category").and_then(|v| v.as_str()).unwrap_or("");
+    if file_category != category {
+        return Err(format!("File category is '{file_category}', not '{category}'. Refusing to import."));
+    }
+
+    let conn = state.lock().map_err(|e| e.to_string())?;
+    let mut folders_in = 0; let mut entries_in = 0; let mut contacts_in = 0; let mut apps_in = 0; let mut atts_in = 0;
+
+    if let Some(arr) = payload.get("folders").and_then(|v| v.as_array()) {
+        for f in arr {
+            let id = f.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let parent_id = f.get("parent_id").and_then(|v| v.as_str());
+            let name = f.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let position = f.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
+            let created_at = f.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+            let updated_at = f.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+            if id.is_empty() || name.is_empty() { continue; }
+            conn.execute(
+                "INSERT INTO folders (id,parent_id,top_category,name,position,created_at,updated_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7)
+                 ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id, name=excluded.name,
+                 position=excluded.position, updated_at=excluded.updated_at",
+                params![id, parent_id, category, name, position, created_at, updated_at],
+            ).map_err(|e| e.to_string())?;
+            folders_in += 1;
+        }
+    }
+
+    if category == "contacts" {
+        if let Some(arr) = payload.get("contacts").and_then(|v| v.as_array()) {
+            for c in arr {
+                let id = c.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                let name = c.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                if id.is_empty() || name.is_empty() { continue; }
+                let folder_id = c.get("folder_id").and_then(|v| v.as_str());
+                let role = c.get("role").and_then(|v| v.as_str()).unwrap_or("");
+                let company = c.get("company").and_then(|v| v.as_str()).unwrap_or("");
+                let phone = c.get("phone").and_then(|v| v.as_str()).unwrap_or("");
+                let email = c.get("email").and_then(|v| v.as_str()).unwrap_or("");
+                let notes = c.get("notes").and_then(|v| v.as_str()).unwrap_or("");
+                let tags = c.get("tags").map(|v| v.to_string()).unwrap_or_else(|| "[]".into());
+                let is_fav = c.get("is_favorite").and_then(|v| v.as_bool()).unwrap_or(false) as i64;
+                let created_at = c.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+                let updated_at = c.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+                conn.execute(
+                    "INSERT INTO contacts (id,folder_id,name,role,company,phone,email,notes,tags,is_favorite,position,created_at,updated_at)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,0,?11,?12)
+                     ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id, name=excluded.name,
+                     role=excluded.role, company=excluded.company, phone=excluded.phone, email=excluded.email,
+                     notes=excluded.notes, tags=excluded.tags, is_favorite=excluded.is_favorite,
+                     updated_at=excluded.updated_at",
+                    params![id, folder_id, name, role, company, phone, email, notes, tags, is_fav, created_at, updated_at],
+                ).map_err(|e| e.to_string())?;
+                contacts_in += 1;
+            }
+        }
+    } else if category == "apps" {
+        if let Some(arr) = payload.get("apps").and_then(|v| v.as_array()) {
+            for a in arr {
+                let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                let name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                if id.is_empty() || name.is_empty() { continue; }
+                let folder_id = a.get("folder_id").and_then(|v| v.as_str());
+                let vendor = a.get("vendor").and_then(|v| v.as_str()).unwrap_or("");
+                let url = a.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                let login_notes = a.get("login_notes").and_then(|v| v.as_str()).unwrap_or("");
+                let criticality = a.get("criticality").and_then(|v| v.as_str()).unwrap_or("");
+                let tags = a.get("tags").map(|v| v.to_string()).unwrap_or_else(|| "[]".into());
+                let is_fav = a.get("is_favorite").and_then(|v| v.as_bool()).unwrap_or(false) as i64;
+                let created_at = a.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+                let updated_at = a.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+                conn.execute(
+                    "INSERT INTO apps (id,folder_id,name,vendor,url,login_notes,criticality,tags,is_favorite,position,created_at,updated_at)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,0,?10,?11)
+                     ON CONFLICT(id) DO UPDATE SET folder_id=excluded.folder_id, name=excluded.name,
+                     vendor=excluded.vendor, url=excluded.url, login_notes=excluded.login_notes,
+                     criticality=excluded.criticality, tags=excluded.tags, is_favorite=excluded.is_favorite,
+                     updated_at=excluded.updated_at",
+                    params![id, folder_id, name, vendor, url, login_notes, criticality, tags, is_fav, created_at, updated_at],
+                ).map_err(|e| e.to_string())?;
+                apps_in += 1;
+            }
+        }
+    }
+
+    if let Some(arr) = payload.get("entries").and_then(|v| v.as_array()) {
+        for e in arr {
+            let id = e.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let title = e.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            if id.is_empty() || title.is_empty() { continue; }
+            let folder_id = e.get("folder_id").and_then(|v| v.as_str());
+            let app_id = e.get("app_id").and_then(|v| v.as_str());
+            let kind = e.get("kind").and_then(|v| v.as_str());
+            let properties = e.get("properties").and_then(|v| v.as_str()).unwrap_or("{}");
+            let is_fav = e.get("is_favorite").and_then(|v| v.as_bool()).unwrap_or(false) as i64;
+            let content = e.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            let url = e.get("url").and_then(|v| v.as_str());
+            let tags = e.get("tags").map(|v| v.to_string()).unwrap_or_else(|| "[]".into());
+            let created_at = e.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+            let updated_at = e.get("updated_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+            conn.execute(
+                "INSERT INTO entries (id,title,top_category,folder_id,app_id,kind,properties,is_favorite,content,url,tags,position,created_at,updated_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,0,?12,?13)
+                 ON CONFLICT(id) DO UPDATE SET title=excluded.title, folder_id=excluded.folder_id,
+                 app_id=excluded.app_id, kind=excluded.kind, properties=excluded.properties,
+                 is_favorite=excluded.is_favorite, content=excluded.content, url=excluded.url,
+                 tags=excluded.tags, updated_at=excluded.updated_at",
+                params![id, title, category, folder_id, app_id, kind, properties, is_fav, content, url, tags, created_at, updated_at],
+            ).map_err(|e| e.to_string())?;
+            entries_in += 1;
+        }
+    }
+
+    if let Some(arr) = payload.get("attachments").and_then(|v| v.as_array()) {
+        for a in arr {
+            let id = a.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let filename = a.get("filename").and_then(|v| v.as_str()).unwrap_or("");
+            let b64 = a.get("data_base64").and_then(|v| v.as_str()).unwrap_or("");
+            if id.is_empty() || filename.is_empty() || b64.is_empty() { continue; }
+            let entry_id = a.get("entry_id").and_then(|v| v.as_str());
+            let app_id = a.get("app_id").and_then(|v| v.as_str());
+            let contact_id = a.get("contact_id").and_then(|v| v.as_str());
+            let mime_type = a.get("mime_type").and_then(|v| v.as_str()).unwrap_or("");
+            let created_at = a.get("created_at").and_then(|v| v.as_str()).unwrap_or(&*now()).to_string();
+            let Ok(bytes) = general_purpose::STANDARD.decode(b64.as_bytes()) else { continue; };
+            conn.execute(
+                "INSERT INTO attachments (id, entry_id, app_id, contact_id, filename, mime_type, size_bytes, data, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(id) DO UPDATE SET filename=excluded.filename, mime_type=excluded.mime_type,
+                 size_bytes=excluded.size_bytes, data=excluded.data",
+                params![id, entry_id, app_id, contact_id, filename, mime_type, bytes.len() as i64, bytes, created_at],
+            ).map_err(|e| e.to_string())?;
+            atts_in += 1;
+        }
+    }
+
+    Ok(serde_json::json!({
+        "folders": folders_in, "entries": entries_in, "contacts": contacts_in,
+        "apps": apps_in, "attachments": atts_in,
+    }))
+}
+
+// ─────────────── full export / import (legacy) ───────────────
 
 #[tauri::command]
 pub fn export_json(app: AppHandle, state: State<Mutex<Connection>>) -> Result<String, String> {

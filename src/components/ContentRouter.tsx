@@ -8,6 +8,7 @@ import { ContactsModule } from './ContactsModule';
 import { SiteLinksModule } from './SiteLinksModule';
 import { AppsModule } from './AppsModule';
 import { StructuredModule } from './StructuredModule';
+import { SettingsView } from './SettingsView';
 import { TopCategory } from '../types';
 
 const STRUCTURED_TOPS: TopCategory[] = ['servers', 'dbs', 'network', 'weekly'];
@@ -15,8 +16,9 @@ const STRUCTURED_TOPS: TopCategory[] = ['servers', 'dbs', 'network', 'weekly'];
 export function ContentRouter() {
   const { selection, folders, entries } = useApp();
   switch (selection.kind) {
-    case 'home':    return <HomeView />;
-    case 'pinned':  return <PinnedView />;
+    case 'home':     return <HomeView />;
+    case 'pinned':   return <PinnedView />;
+    case 'settings': return <SettingsView />;
     case 'top': {
       if (selection.top === 'contacts')  return <ContactsModule initialFolder={null} />;
       if (selection.top === 'sitelinks') return <SiteLinksModule initialFolder={null} />;

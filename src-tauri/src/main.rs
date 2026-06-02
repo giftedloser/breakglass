@@ -43,6 +43,9 @@ fn main() {
             commands::save_attachment_to,
             commands::read_attachment_b64,
             commands::seed_demo_data,
+            commands::category_counts,
+            commands::export_category,
+            commands::import_category,
             commands::export_json,
             commands::import_json,
         ])

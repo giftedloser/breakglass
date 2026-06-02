@@ -61,6 +61,10 @@ export const db = {
 
   // demo / import / export
   seedDemoData: () => invoke<{ ok: boolean }>('seed_demo_data'),
+  categoryCounts: () => invoke<Record<string, number>>('category_counts'),
+  exportCategory: (category: string) => invoke<string>('export_category', { category }),
+  importCategory: (category: string, path: string) =>
+    invoke<{ folders: number; entries: number; contacts: number; apps: number; attachments: number }>('import_category', { category, path }),
   exportJson: () => invoke<string>('export_json'),
   importJson: (path: string) =>
     invoke<{ folders_imported: number; apps_imported: number; entries_imported: number; contacts_imported: number }>('import_json', { path }),
