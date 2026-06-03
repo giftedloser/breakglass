@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { open as openFile } from '@tauri-apps/plugin-dialog';
-import { Download, Moon, Sun, Upload, Wand2 } from 'lucide-react';
+import { Download, Moon, Sun, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { db } from '../lib/invoke';
 import { TOPS } from '../lib/categories';
@@ -68,15 +68,10 @@ export function SettingsView() {
     } catch (err) { toast.error(String(err)); }
   };
 
-  const loadDemo = async () => {
-    try { await db.seedDemoData(); await refresh(); await reloadCounts(); toast.success('Demo data loaded'); }
-    catch (err) { toast.error(String(err)); }
-  };
-
   return (
     <div className="content-pane settings-pane">
       <h1 className="read-title">Settings</h1>
-      <div className="content-sub">Theme, backup / restore, and demo data.</div>
+      <div className="content-sub">Theme, backup, and restore.</div>
 
       <section className="panel">
         <h3>Appearance</h3>
@@ -128,17 +123,6 @@ export function SettingsView() {
             <button className="ghost-btn" onClick={exportAll}><Download size={11} /> Export all</button>
             <button className="ghost-btn" onClick={importAll}><Upload size={11} /> Import all</button>
           </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h3>Demo data</h3>
-        <div className="settings-row">
-          <div className="settings-row-main">
-            <div className="settings-label">Load realistic sample content</div>
-            <div className="settings-desc">Adds folders, entries, apps, and a weekly report alongside your existing data. Nothing is deleted.</div>
-          </div>
-          <button className="ghost-btn" onClick={loadDemo}><Wand2 size={11} /> Load demo data</button>
         </div>
       </section>
 

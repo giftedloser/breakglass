@@ -82,8 +82,7 @@ export const db = {
     invoke<string>('save_attachment_to', { id, destPath }),
   readAttachmentB64: (id: string) => invoke<string>('read_attachment_b64', { id }),
 
-  // demo / import / export
-  seedDemoData: () => invoke<{ ok: boolean }>('seed_demo_data'),
+  // import / export
   categoryCounts: () => invoke<Record<string, number>>('category_counts'),
   exportCategory: (category: string) => invoke<string>('export_category', { category }),
   importCategory: (category: string, path: string) =>
