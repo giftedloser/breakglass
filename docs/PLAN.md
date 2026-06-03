@@ -1,136 +1,72 @@
-# BreakGlass redesign — locked decisions
+# BreakGlass Design Snapshot
 
-Personal IT reference tool for one user. Not a ticketing system. Not multi-user.
-Goal: remember stuff spread across 5 places, find it fast in a pinch.
+BreakGlass is a personal IT reference tool for one operator. It is built around fast retrieval, local data ownership, and low-friction notes during operational work.
 
-## Model
+This file records the current product shape. It is not a release roadmap.
 
-User-defined **tree** of folders and entries. Any depth. Entries can live at
-any node (under a top-level category, under a sub-folder, under a sub-sub-folder).
+## Product Boundaries
 
-Top-level categories (fixed list, in this order):
+- Single-user desktop app.
+- Offline-first local SQLite data.
+- No ticket lifecycle, assignment, multi-user permissions, or hosted backend.
+- Data should be quick to browse from the sidebar and quick to find through global search.
 
-1. Emergency
-2. Servers & Services
-3. DBs
-4. Network
-5. Apps
-6. Contacts
-7. Notes
-8. How To
-9. Site Links
+## Sidebar Model
 
-What goes INSIDE each top-level is user-built. Sub-folders are unlimited depth.
-Apps tends to nest deeper (vendor → product → entry), but the model is uniform —
-nothing is special-cased.
+The sidebar has fixed top-level pages grouped by operational area:
 
-## Sidebar
+- **INFRA**: Servers, Services, DBS & SQL, Network
+- **OPS**: Emergency, How To, Weekly Reports
+- **WORKSPACE**: Apps, Notes, Site Links, Contacts
 
-```
-⌂ Home
-★ Pinned
-──
-[ tree of the 9 top-level categories, expandable ]
-──
-⚙ Settings
-```
+Home and Pinned sit above the grouped pages. Settings sits in the footer.
 
-No "Active" / "Drafts" / "In Progress" filters. No status lifecycle.
+Folders can be nested under top-level pages. Some pages use dedicated modules instead of a generic entry list.
 
-## Entries
+## Page Shapes
 
-- Just reference docs. Title + tags + rich-text body.
-- No status. No severity. No active/resolved.
-- One flag: pinned (★). Click star to toggle.
-- Tags are free-form, cross-cutting filter.
-- Inline edit for title and tags. TipTap body keeps a read/edit toggle.
+| Page | Current shape |
+| --- | --- |
+| Home | Quick shortcut row plus pinned/recent work |
+| Pinned | Favorite entries, apps, and contacts |
+| Emergency | Folder tree of runbook entries |
+| Servers | Structured server records |
+| Services | Structured service records |
+| DBS & SQL | Database records and SQL snippets |
+| Network | VLAN, subnet, host/IP, switch/device, and generic records |
+| How To | Procedure entries in folders |
+| Weekly Reports | Weekly report records with note sections |
+| Apps | App records with vendor, URL, login notes, criticality, tags, and child entries |
+| Notes | Generic note entries in folders |
+| Site Links | Title-first link cards with optional descriptions; URLs open on click and are edited in detail view |
+| Contacts | Contact records with role, company, phone, email, notes, and tags |
 
-## Home view
+## Entry Behavior
 
-Two sections only:
-- **Pinned** — everything starred.
-- **Recent** — last ~10 entries opened or edited. Tracked silently.
+- Entries save title, top category, optional folder, optional app, kind, structured properties, favorite state, rich body, URL, tags, and timestamps.
+- Structured pages hide or emphasize fields depending on kind.
+- Detail components are keyed by selected record id so draft/editor state does not leak between newly created or selected records.
+- Rich text uses TipTap.
 
-No emergency strip. No active fires panel.
+## Search
 
-## Folder view (clicking any folder in the tree)
+Global search opens with Ctrl+K. Search covers:
 
-- **Sub-folders** section — every child folder.
-- **Entries directly under [folder]** — entries at this level, only renders if any exist.
+- Folder names
+- Entry titles, bodies, tags, URLs, kinds, and structured properties
+- App names, vendors, URLs, login notes, criticality, and tags
+- Contact names, roles, companies, phones, emails, notes, and tags
 
-## Entry view
+Search ranking favors exact titles and title prefixes first, then strong title/body/keyword matches, favorites, and recency.
 
-- Breadcrumb at top (Category / Sub-folder / Entry).
-- Title (inline-editable), star, tags.
-- Body (TipTap, read mode by default, click Edit to switch).
-- Related section (auto: shared tags + same parent folder).
-- "Updated Xm ago" in the corner. No created timestamp shown.
+## Backup / Restore
 
-## Search (Ctrl+K)
+Settings supports per-category export/import and full backup export/import. Category imports only touch the selected category.
 
-- Global. Searches title, body, tags across the whole tree.
-- Results grouped by top-level category.
-- Folder hits ranked above entry hits when query matches a folder name.
+## Development Notes
 
-## Visual
-
-- Warmer charcoal background (`#1a1816`), not zinc-950 black.
-- One accent color (warm red/orange `#d65b3b`) used sparingly.
-- Wider reading column (~720px cap on body content).
-- Theme toggle lives in Settings, not a full-width sidebar button.
-
-## What's getting cut from current build
-
-- `emergency` / `vendors` / `servers` / `security` / `network` / `notes` /
-  `runbooks` / `apps` / `contacts` fixed category enum
-- `status` column on entries (active/in_progress/draft)
-- `severity` column on entries (info/warning/critical)
-- Three-column always-on layout (becomes two-column)
-- Middle list strip with sort/filter dropdown
-- Untitled draft persistence (entries don't save until they have content)
-- "All Entries / Favorites / In Progress / Drafts" quick filters
-- Full-width Dark/Light button at sidebar bottom
-
-## What's getting added
-
-- `folders` table: id, parent_id (nullable, points to folder or top category),
-  top_category (one of the 9 enum values), name, position, created_at, updated_at
-- `entries` keeps id/title/content/tags/is_favorite/created_at/updated_at,
-  adds `folder_id` (nullable; null means directly under a top category) and
-  `top_category` (which of the 9 it belongs to)
-- Drop `status`, `severity`, `category` enum on entries (replaced by `top_category`
-  which is broader and matches the new model)
-- `contacts` table stays — same structured fields (name, role, company, phone,
-  email, notes, tags, is_favorite). Treated like an entry for tree purposes:
-  appears under the Contacts top-level, can live in sub-folders.
-- Recent-views table or column for the Home "Recent" section.
-
-## Migration plan
-
-Existing data (the 4 entries visible in current screenshot) maps as:
-- `runbooks` → top_category = "How To" or "Emergency" (user picks during one-time prompt)
-- `vendors` → top_category = "Contacts"
-- `emergency` → top_category = "Emergency"
-- Empty "Untitled Runbook" drafts → delete on migration
-
-## Build order (for tomorrow)
-
-1. Rust: new schema migration (v2). Adds folders table, alters entries.
-2. Rust: commands for folder CRUD, move entry, list tree.
-3. TS: types for Folder, updated Entry, TreeNode.
-4. New Sidebar component rendering the tree from data, expandable.
-5. New FolderView component (sub-folders + direct entries).
-6. New HomeView component (pinned + recent).
-7. EntryView simplification (drop status/severity UI).
-8. Migration prompt on first launch after upgrade.
-9. Drop dead components (StatusBadge, old category badges, old sort dropdown).
-
-## Open / TBD for tomorrow
-
-- Can the user rename / reorder the 9 top-level categories, or are they fixed forever?
-- Contacts: keep separate structured table, or treat as just-another-entry with
-  phone/email as fields on a regular entry? Leaning: keep separate table, but
-  render in the tree alongside everything else.
-- Site Links: each link = its own one-line entry (title + URL), no body? Or full
-  entry with body? Leaning: title + URL only, no body, opens in browser on click.
-- Drag-and-drop in the tree to move folders/entries around? Or move via a menu?
+- Frontend state lives in `src/context/AppContext.tsx`.
+- Tauri commands live in `src-tauri/src/commands.rs`.
+- Database schema and migrations live in `src-tauri/src/db.rs`.
+- Top-level category metadata lives in `src/lib/categories.ts`.
+- Structured entry kind definitions live in `src/lib/kinds.ts`.

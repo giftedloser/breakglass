@@ -104,12 +104,13 @@ export function AppDetail({ appId }: { appId: string }) {
   const childEntries = entries
     .filter((e) => e.app_id === app.id)
     .sort((a, b) => a.title.localeCompare(b.title));
+  const titleInputSize = Math.max(14, Math.min(56, (name || '').length + 1));
 
   return (
     <div className="content-pane">
       <div className="app-detail-header">
         {editing
-          ? <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} autoFocus />
+          ? <input className="entry-title-input inline-title-input" size={titleInputSize} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} autoFocus />
           : <h1 className="read-title">{name || '(unnamed app)'}</h1>}
         <div className="header-actions">
           <button className="icon-btn" onClick={togglePin} title={app.is_favorite ? 'Unpin' : 'Pin'}>

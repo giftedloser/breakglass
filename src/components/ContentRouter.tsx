@@ -40,7 +40,7 @@ export function ContentRouter() {
       if (entry && STRUCTURED_TOPS.includes(entry.top_category)) {
         return <StructuredModule top={entry.top_category} initialFolder={null} />;
       }
-      return <EntryView entryId={selection.entry_id} />;
+      return <EntryView key={selection.entry_id} entryId={selection.entry_id} />;
     }
     case 'contact': return <ContactsModule initialFolder={null} />;
     case 'app':     return <AppsModule initialFolder={null} />;

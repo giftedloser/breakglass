@@ -5,6 +5,61 @@ import { db } from '../lib/invoke';
 import { SearchHit } from '../types';
 import { topLabel } from '../lib/categories';
 
+const searchTokens = (value: string) =>
+  value.toLowerCase().split(/[^a-z0-9]+/i).filter(Boolean);
+
+const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+
+const wordStartsWith = (value: string, token: string) =>
+  searchTokens(value).some((word) => word.startsWith(token));
+
+const isSubsequence = (word: string, token: string) => {
+  if (token.length < 4) return false;
+  let i = 0;
+  for (const ch of word) {
+    if (ch === token[i]) i += 1;
+    if (i === token.length) return true;
+  }
+  return false;
+};
+
+const fuzzyTokenMatch = (value: string, token: string) =>
+  searchTokens(value).some((word) => word.includes(token) || isSubsequence(word, token));
+
+const allTokensMatch = (value: string, tokens: string[]) => {
+  const lower = normalize(value);
+  return tokens.length > 0 && tokens.every((token) => lower.includes(token) || fuzzyTokenMatch(lower, token));
+};
+
+const rankHit = (hit: SearchHit, query: string) => {
+  const q = normalize(query);
+  const tokens = searchTokens(query);
+  const title = normalize(hit.title);
+  const snippet = normalize(hit.snippet);
+  const category = normalize(topLabel(hit.top_category));
+  const haystack = `${title} ${snippet} ${category}`;
+  let score = 0;
+
+  if (title === q) score += 1000;
+  else if (title.startsWith(q)) score += 760;
+  else if (tokens.some((token) => wordStartsWith(title, token))) score += 560;
+  else if (title.includes(q)) score += 460;
+
+  if (allTokensMatch(title, tokens)) score += 300;
+  if (snippet.includes(q)) score += 150;
+  if (allTokensMatch(haystack, tokens)) score += 120;
+  if (category.includes(q)) score += 60;
+  if (hit.is_favorite) score += 25;
+
+  const updated = Date.parse(hit.updated_at);
+  if (!Number.isNaN(updated)) {
+    const daysOld = Math.max(0, (Date.now() - updated) / 86_400_000);
+    score += Math.max(0, 20 - Math.min(20, daysOld));
+  }
+
+  return score;
+};
+
 export function SearchModal() {
   const { dispatch, selectEntry, selectContact, selectFolder, selectApp } = useApp();
   const [q, setQ] = useState('');
@@ -21,15 +76,11 @@ export function SearchModal() {
       try {
         const res = await db.searchAll(q);
         if (alive) {
-          const lower = q.toLowerCase();
-          res.sort((a, b) => {
-            const ord = (h: SearchHit) => h.kind === 'folder' ? 0 : h.kind === 'entry' ? 1 : 2;
-            if (ord(a) !== ord(b)) return ord(a) - ord(b);
-            const ax = a.title.toLowerCase() === lower ? 0 : 1;
-            const bx = b.title.toLowerCase() === lower ? 0 : 1;
-            return ax - bx;
-          });
-          setHits(res);
+          const ranked = res
+            .map((hit, index) => ({ hit, index, score: rankHit(hit, q) }))
+            .sort((a, b) => b.score - a.score || a.index - b.index)
+            .map(({ hit }) => hit);
+          setHits(ranked);
           setActive(0);
         }
       } catch { /* ignore */ }

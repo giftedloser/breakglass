@@ -118,7 +118,7 @@ export function AppsModule({ initialFolder }: Props) {
         </div>
         <div className="module-detail">
           {selectedId
-            ? <AppDetail appId={selectedId} />
+            ? <AppDetail key={selectedId} appId={selectedId} />
             : <div className="module-empty">Select an app to view access notes, child entries, and attachments.</div>}
         </div>
       </div>

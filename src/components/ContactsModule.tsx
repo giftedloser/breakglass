@@ -124,7 +124,7 @@ export function ContactsModule({ initialFolder }: Props) {
         </div>
         <div className="module-detail">
           {selectedId
-            ? <ContactView contactId={selectedId} />
+            ? <ContactView key={selectedId} contactId={selectedId} />
             : <div className="module-empty">Select a contact to view phone, email, notes, and attachments.</div>}
         </div>
       </div>

@@ -96,6 +96,7 @@ export function ContactView({ contactId }: { contactId: string }) {
   const path = useMemo(() => folderPath(contact?.folder_id ?? null, folders), [contact?.folder_id, folders]);
 
   if (!contact) return <div className="content-pane"><div className="empty">Contact not found.</div></div>;
+  const titleInputSize = Math.max(14, Math.min(56, (name || '').length + 1));
 
   const doCopy = async (val: string, label: string) => {
     if (!val) return;
@@ -137,7 +138,7 @@ export function ContactView({ contactId }: { contactId: string }) {
 
       {editing ? (
         <div className="entry-title-row">
-          <input className="entry-title-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} autoFocus />
+          <input className="entry-title-input inline-title-input" size={titleInputSize} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => save({ name })} autoFocus />
         </div>
       ) : (
         <h1 className="read-title">{name || '(unnamed)'}</h1>

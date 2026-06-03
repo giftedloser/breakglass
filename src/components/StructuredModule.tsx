@@ -156,7 +156,7 @@ export function StructuredModule({ top, initialFolder }: Props) {
         </div>
         <div className="module-detail">
           {selectedId
-            ? <EntryView entryId={selectedId} />
+            ? <EntryView key={selectedId} entryId={selectedId} />
             : <div className="module-empty">{top === 'weekly' ? 'Select a report, or click "New" to start capturing this week.' : 'Select a record from the list, or click "New" to capture one.'}</div>}
         </div>
       </div>

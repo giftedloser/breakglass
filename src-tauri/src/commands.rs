@@ -1,6 +1,7 @@
 use crate::models::*;
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
+use serde_json::Value;
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -9,6 +10,136 @@ use uuid::Uuid;
 fn now() -> String { Utc::now().to_rfc3339() }
 
 fn valid_top(t: &str) -> bool { TOP_CATEGORIES.contains(&t) }
+
+fn search_terms(query: &str) -> Vec<String> {
+    query.to_lowercase().split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty()).take(8).map(|s| s.to_string()).collect()
+}
+
+fn collapse_spaces(text: &str) -> String { text.split_whitespace().collect::<Vec<_>>().join(" ") }
+
+fn normalize_search_text(text: &str) -> String { collapse_spaces(&text.to_lowercase()) }
+
+fn flatten_json_text(value: &Value, out: &mut Vec<String>) {
+    match value {
+        Value::String(s) => out.push(s.clone()),
+        Value::Number(n) => out.push(n.to_string()),
+        Value::Bool(b) => out.push(b.to_string()),
+        Value::Array(items) => for item in items { flatten_json_text(item, out); },
+        Value::Object(map) => {
+            for (key, item) in map {
+                if key == "type" { continue; }
+                if !matches!(key.as_str(), "content" | "attrs" | "text" | "marks") {
+                    out.push(key.replace(['_', '-'], " "));
+                }
+                flatten_json_text(item, out);
+            }
+        }
+        Value::Null => {}
+    }
+}
+
+fn readable_text(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() { return String::new(); }
+    if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
+        let mut parts = Vec::new();
+        flatten_json_text(&value, &mut parts);
+        return collapse_spaces(&parts.join(" "));
+    }
+    collapse_spaces(trimmed)
+}
+
+fn text_words(text: &str) -> Vec<&str> {
+    text.split(|c: char| !c.is_alphanumeric()).filter(|s| !s.is_empty()).collect()
+}
+
+fn levenshtein_limited(a: &str, b: &str, limit: usize) -> usize {
+    if a == b { return 0; }
+    if a.len().abs_diff(b.len()) > limit { return limit + 1; }
+
+    let mut prev: Vec<usize> = (0..=b.chars().count()).collect();
+    let mut curr = vec![0; prev.len()];
+    for (i, ca) in a.chars().enumerate() {
+        curr[0] = i + 1;
+        let mut row_min = curr[0];
+        for (j, cb) in b.chars().enumerate() {
+            let cost = if ca == cb { 0 } else { 1 };
+            curr[j + 1] = (prev[j + 1] + 1).min(curr[j] + 1).min(prev[j] + cost);
+            row_min = row_min.min(curr[j + 1]);
+        }
+        if row_min > limit { return limit + 1; }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[b.chars().count()]
+}
+
+fn fuzzy_word_match(word: &str, term: &str) -> bool {
+    if term.len() < 4 || word.len() < 4 { return false; }
+    if word.starts_with(term) || word.contains(term) { return true; }
+    let limit = if term.len() >= 7 { 2 } else { 1 };
+    levenshtein_limited(word, term, limit) <= limit
+}
+
+fn all_terms_match(text: &str, terms: &[String]) -> bool {
+    if terms.is_empty() { return false; }
+    let words = text_words(text);
+    terms.iter().all(|term| text.contains(term) || words.iter().any(|word| fuzzy_word_match(word, term)))
+}
+
+fn word_starts_with(text: &str, term: &str) -> bool {
+    text_words(text).iter().any(|word| word.starts_with(term))
+}
+
+fn truncate_chars(text: &str, max: usize) -> String {
+    let mut out = String::new();
+    for ch in text.chars().take(max) { out.push(ch); }
+    if text.chars().count() > max { out.push_str("..."); }
+    out
+}
+
+fn search_snippet(fields: &[String], terms: &[String]) -> String {
+    for field in fields {
+        let clean = readable_text(field);
+        if clean.is_empty() { continue; }
+        let lower = clean.to_lowercase();
+        let hit = terms.iter().filter(|t| !t.is_empty()).find_map(|term| lower.find(term));
+        if let Some(idx) = hit {
+            let start = clean[..idx].char_indices().rev().nth(24).map(|(i, _)| i).unwrap_or(0);
+            let end = clean[idx..].char_indices().nth(72).map(|(i, _)| idx + i).unwrap_or(clean.len());
+            let mut snippet = clean[start..end].trim().to_string();
+            if start > 0 { snippet.insert_str(0, "..."); }
+            if end < clean.len() { snippet.push_str("..."); }
+            return snippet;
+        }
+    }
+
+    fields.iter()
+        .map(|f| readable_text(f))
+        .find(|f| !f.is_empty())
+        .map(|f| truncate_chars(&f, 96))
+        .unwrap_or_default()
+}
+
+fn search_score(title: &str, fields: &[String], query: &str, terms: &[String], is_favorite: bool) -> Option<i64> {
+    let title_text = normalize_search_text(title);
+    let haystack = normalize_search_text(&format!("{} {}", title, fields.iter().map(|f| readable_text(f)).collect::<Vec<_>>().join(" ")));
+    let query_text = normalize_search_text(query);
+    let mut score = 0;
+    let mut matched = false;
+
+    if title_text == query_text { score += 1200; matched = true; }
+    else if title_text.starts_with(&query_text) { score += 950; matched = true; }
+    else if terms.iter().any(|term| word_starts_with(&title_text, term)) { score += 720; matched = true; }
+    else if title_text.contains(&query_text) { score += 650; matched = true; }
+
+    if all_terms_match(&title_text, terms) { score += 520; matched = true; }
+    if haystack.contains(&query_text) { score += 260; matched = true; }
+    if all_terms_match(&haystack, terms) { score += 180; matched = true; }
+    if is_favorite && matched { score += 30; }
+
+    matched.then_some(score)
+}
 
 // ─────────────── row mappers ───────────────
 
@@ -348,67 +479,89 @@ pub fn search_all(state: State<Mutex<Connection>>, query: String) -> Result<Vec<
     let q = query.trim();
     if q.is_empty() { return Ok(Vec::new()); }
     let conn = state.lock().map_err(|e| e.to_string())?;
-    let mut hits: Vec<SearchHit> = Vec::new();
-    let like = format!("%{}%", q.to_lowercase());
+    let terms = search_terms(q);
+    let mut scored: Vec<(i64, SearchHit)> = Vec::new();
 
-    let mut fstmt = conn.prepare("SELECT id, name, top_category, updated_at FROM folders WHERE lower(name) LIKE ?1 LIMIT 25").map_err(|e| e.to_string())?;
-    let frows = fstmt.query_map(params![like], |r| Ok(SearchHit {
-        kind: "folder".into(), id: r.get(0)?, title: r.get(1)?, top_category: r.get(2)?,
-        snippet: String::new(), is_favorite: false, updated_at: r.get(3)?,
-    })).map_err(|e| e.to_string())?;
-    for h in frows { hits.push(h.map_err(|e| e.to_string())?); }
+    let mut fstmt = conn.prepare("SELECT id, name, top_category, updated_at FROM folders ORDER BY updated_at DESC").map_err(|e| e.to_string())?;
+    let frows = fstmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?))).map_err(|e| e.to_string())?;
+    for row in frows {
+        let (id, name, top_category, updated_at) = row.map_err(|e| e.to_string())?;
+        let fields = vec![top_category.clone()];
+        if let Some(score) = search_score(&name, &fields, q, &terms, false) {
+            scored.push((score, SearchHit {
+                kind: "folder".into(), id, title: name, top_category,
+                snippet: String::new(), is_favorite: false, updated_at,
+            }));
+        }
+    }
 
-    // Apps
-    let mut astmt = conn.prepare(
-        "SELECT id, name, 'apps', COALESCE(vendor, '') AS snip, is_favorite, updated_at
-         FROM apps WHERE lower(name) LIKE ?1 OR lower(vendor) LIKE ?1 LIMIT 25"
-    ).map_err(|e| e.to_string())?;
-    let arows = astmt.query_map(params![like], |r| Ok(SearchHit {
-        kind: "app".into(), id: r.get(0)?, title: r.get(1)?, top_category: r.get(2)?,
-        snippet: r.get(3)?, is_favorite: r.get::<_, i64>(4)? == 1, updated_at: r.get(5)?,
-    })).map_err(|e| e.to_string())?;
-    for h in arows { hits.push(h.map_err(|e| e.to_string())?); }
-
-    let fts_q = q.replace('"', "");
     let mut estmt = conn.prepare(
-        "SELECT e.id, e.title, e.top_category,
-                snippet(entries_fts, 2, '', '', '...', 16) AS snip,
-                e.is_favorite, e.updated_at
-         FROM entries_fts JOIN entries e ON e.id = entries_fts.id
-         WHERE entries_fts MATCH ?1
-         ORDER BY bm25(entries_fts) LIMIT 50"
+        "SELECT id, title, top_category, content, properties, tags, is_favorite, updated_at, COALESCE(url, ''), COALESCE(kind, '')
+         FROM entries ORDER BY is_favorite DESC, updated_at DESC"
     ).map_err(|e| e.to_string())?;
-    if let Ok(erows) = estmt.query_map(params![fts_q], |r| Ok(SearchHit {
-        kind: "entry".into(), id: r.get(0)?, title: r.get(1)?, top_category: r.get(2)?,
-        snippet: r.get(3)?, is_favorite: r.get::<_, i64>(4)? == 1, updated_at: r.get(5)?,
-    })) {
-        for h in erows.flatten() { hits.push(h); }
-    } else {
-        let mut estmt2 = conn.prepare(
-            "SELECT id, title, top_category, '' AS snip, is_favorite, updated_at
-             FROM entries WHERE lower(title) LIKE ?1 LIMIT 50"
-        ).map_err(|e| e.to_string())?;
-        let erows2 = estmt2.query_map(params![like], |r| Ok(SearchHit {
-            kind: "entry".into(), id: r.get(0)?, title: r.get(1)?, top_category: r.get(2)?,
-            snippet: r.get(3)?, is_favorite: r.get::<_, i64>(4)? == 1, updated_at: r.get(5)?,
-        })).map_err(|e| e.to_string())?;
-        for h in erows2 { hits.push(h.map_err(|e| e.to_string())?); }
+    let erows = estmt.query_map([], |r| Ok((
+        r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
+        r.get::<_, String>(3)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?,
+        r.get::<_, i64>(6)? == 1, r.get::<_, String>(7)?, r.get::<_, String>(8)?,
+        r.get::<_, String>(9)?,
+    ))).map_err(|e| e.to_string())?;
+    for row in erows {
+        let (id, title, top_category, content, properties, tags, is_favorite, updated_at, url, kind) = row.map_err(|e| e.to_string())?;
+        let fields = vec![properties, content, tags, url, kind, top_category.clone()];
+        if let Some(score) = search_score(&title, &fields, q, &terms, is_favorite) {
+            let snippet = search_snippet(&fields, &terms);
+            scored.push((score, SearchHit {
+                kind: "entry".into(), id, title, top_category,
+                snippet, is_favorite, updated_at,
+            }));
+        }
+    }
+
+    let mut astmt = conn.prepare(
+        "SELECT id, name, vendor, url, login_notes, criticality, tags, is_favorite, updated_at
+         FROM apps ORDER BY is_favorite DESC, updated_at DESC"
+    ).map_err(|e| e.to_string())?;
+    let arows = astmt.query_map([], |r| Ok((
+        r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
+        r.get::<_, String>(3)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?,
+        r.get::<_, String>(6)?, r.get::<_, i64>(7)? == 1, r.get::<_, String>(8)?,
+    ))).map_err(|e| e.to_string())?;
+    for row in arows {
+        let (id, name, vendor, url, login_notes, criticality, tags, is_favorite, updated_at) = row.map_err(|e| e.to_string())?;
+        let fields = vec![vendor, url, login_notes, criticality, tags];
+        if let Some(score) = search_score(&name, &fields, q, &terms, is_favorite) {
+            let snippet = search_snippet(&fields, &terms);
+            scored.push((score, SearchHit {
+                kind: "app".into(), id, title: name, top_category: "apps".into(),
+                snippet, is_favorite, updated_at,
+            }));
+        }
     }
 
     let mut cstmt = conn.prepare(
-        "SELECT id, name, 'contacts', company, is_favorite, updated_at
-         FROM contacts
-         WHERE lower(name) LIKE ?1 OR lower(company) LIKE ?1 OR lower(role) LIKE ?1
-            OR lower(email) LIKE ?1 OR phone LIKE ?1
-         LIMIT 25"
+        "SELECT id, name, role, company, phone, email, notes, tags, is_favorite, updated_at
+         FROM contacts ORDER BY is_favorite DESC, updated_at DESC"
     ).map_err(|e| e.to_string())?;
-    let crows = cstmt.query_map(params![like], |r| Ok(SearchHit {
-        kind: "contact".into(), id: r.get(0)?, title: r.get(1)?, top_category: r.get(2)?,
-        snippet: r.get(3)?, is_favorite: r.get::<_, i64>(4)? == 1, updated_at: r.get(5)?,
-    })).map_err(|e| e.to_string())?;
-    for h in crows { hits.push(h.map_err(|e| e.to_string())?); }
+    let crows = cstmt.query_map([], |r| Ok((
+        r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?,
+        r.get::<_, String>(3)?, r.get::<_, String>(4)?, r.get::<_, String>(5)?,
+        r.get::<_, String>(6)?, r.get::<_, String>(7)?, r.get::<_, i64>(8)? == 1,
+        r.get::<_, String>(9)?,
+    ))).map_err(|e| e.to_string())?;
+    for row in crows {
+        let (id, name, role, company, phone, email, notes, tags, is_favorite, updated_at) = row.map_err(|e| e.to_string())?;
+        let fields = vec![role, company, phone, email, notes, tags];
+        if let Some(score) = search_score(&name, &fields, q, &terms, is_favorite) {
+            let snippet = search_snippet(&fields, &terms);
+            scored.push((score, SearchHit {
+                kind: "contact".into(), id, title: name, top_category: "contacts".into(),
+                snippet, is_favorite, updated_at,
+            }));
+        }
+    }
 
-    Ok(hits)
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.updated_at.cmp(&a.1.updated_at)).then_with(|| a.1.title.cmp(&b.1.title)));
+    Ok(scored.into_iter().take(100).map(|(_, hit)| hit).collect())
 }
 
 #[tauri::command]

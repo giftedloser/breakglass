@@ -10,6 +10,28 @@ import { parseProperties } from '../lib/kinds';
 
 interface Props { initialFolder: string | null }
 
+const isProbablyUrl = (value: string) => /^https?:\/\//i.test(value) || /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(value);
+
+const titleFromUrl = (url: string | null) => {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const pathParts = parsed.pathname.split('/').filter(Boolean);
+    const pathPart = (pathParts[pathParts.length - 1] ?? '').replace(/[-_]+/g, ' ');
+    return pathPart ? `${parsed.hostname} / ${pathPart}` : parsed.hostname;
+  } catch {
+    return url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  }
+};
+
+const displayLinkTitle = (title: string, url: string | null, description: string) => {
+  const cleanTitle = title.trim();
+  if (cleanTitle && !isProbablyUrl(cleanTitle)) return cleanTitle;
+  const cleanDescription = description.trim();
+  if (cleanDescription) return cleanDescription.split(/\r?\n/)[0];
+  return titleFromUrl(url) || cleanTitle || 'Untitled link';
+};
+
 export function SiteLinksModule({ initialFolder }: Props) {
   const { entries, folders, selectEntry, dispatch } = useApp();
   const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
@@ -73,6 +95,7 @@ export function SiteLinksModule({ initialFolder }: Props) {
           <div className="sitelinks-grid">
             {links.map((e) => {
               const desc = parseProperties(e.properties).description ?? '';
+              const displayTitle = displayLinkTitle(e.title, e.url, desc);
               const togglePin = async () => {
                 try {
                   const saved = await db.saveEntry({
@@ -99,12 +122,11 @@ export function SiteLinksModule({ initialFolder }: Props) {
                     { label: e.is_favorite ? 'Unpin' : 'Pin', onClick: togglePin },
                     { label: 'Delete', onClick: remove, danger: true },
                   ]}>
-                  <div className="sl-title">
-                    <ExternalLink size={12} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                    {e.is_favorite && <Star size={11} className="star-mark filled" style={{ verticalAlign: 'middle', marginRight: 4 }} />}
-                    {e.title || '(untitled)'}
+                  <div className="sl-title" title={displayTitle}>
+                    <ExternalLink size={14} />
+                    <span>{displayTitle}</span>
+                    {e.is_favorite && <Star size={12} className="star-mark filled" />}
                   </div>
-                  <div className="sl-url">{e.url || 'no URL'}</div>
                   {desc && <div className="sl-desc">{desc}</div>}
                   <button className="sl-edit" onClick={(ev) => { ev.stopPropagation(); selectEntry(e.id); }} title="Edit"><Pencil size={11} /></button>
                 </ListRowMenu>

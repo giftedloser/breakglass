@@ -6,6 +6,7 @@ dist/
 src-tauri/target/
 src-tauri/gen/schemas/
 *.tsbuildinfo
+coverage/
 
 # logs
 *.log
@@ -29,3 +30,6 @@ desktop.ini
 src-tauri/keys/
 *.key
 *.pem
+
+# local data prep / imports
+REAL DATA PREP/

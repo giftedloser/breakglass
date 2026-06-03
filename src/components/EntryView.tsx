@@ -209,6 +209,7 @@ export function EntryView({ entryId }: { entryId: string }) {
   const hideBody = kindDef(entry.top_category, kind).hideBody;
   const updateField = (key: string, value: string) => setProps((p) => ({ ...p, [key]: value }));
   const isWeekly = entry.top_category === 'weekly';
+  const titleInputSize = Math.max(14, Math.min(56, (title || '').length + 1));
   const setSections = (next: ReportSection[]) => {
     setSectionsState(next);
     dirtyRef.current = true;
@@ -255,7 +256,7 @@ export function EntryView({ entryId }: { entryId: string }) {
 
       {editing ? (
         <div className="entry-title-row">
-          <input className="entry-title-input" value={title} onChange={(e) => setTitle(e.target.value)}
+          <input className="entry-title-input inline-title-input" size={titleInputSize} value={title} onChange={(e) => setTitle(e.target.value)}
                  onBlur={() => save({ title })} autoFocus
                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
         </div>

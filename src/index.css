@@ -137,8 +137,21 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 .tree-top { margin-bottom: 2px; }
-.tree-list { list-style: none; padding: 0; margin: 0 0 0 14px; border-left: 1px dashed var(--line-soft); }
-.tree-list .tree-list { margin-left: 12px; }
+.tree-list {
+  list-style: none;
+  padding: 0 0 0 16px;
+  margin: 0;
+  position: relative;
+}
+.tree-list::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--line-soft);
+}
+.tree-list .tree-list { margin-left: 0; }
 
 .tree-row {
   display: flex; align-items: center; gap: 2px;
@@ -171,6 +184,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .tree-row.is-selected .tree-name { color: var(--text); }
 .tree-row.leaf .tree-name { color: var(--text-muted); }
 .tree-row.leaf .tree-name:hover { color: var(--text); }
+.tree-row.leaf .tree-twisty::before {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+}
+.tree-row.leaf-entry .tree-twisty::before { content: "·"; }
+.tree-row.leaf-app .tree-twisty::before { content: "▦"; font-size: 10px; }
+.tree-row.leaf .leaf-icon { display: none; }
 
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .folder-icon { color: var(--text-dim); font-size: 11px; }
@@ -300,11 +321,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .row-when { color: var(--text-dim); font-size: 11.5px; }
 
 /* ───── entry/contact view ───── */
-.entry-title-row { margin-bottom: 4px; }
+.entry-title-row { margin-bottom: 4px; max-width: 100%; }
 .entry-title-input {
   width: 100%; background: transparent; border: 0; border-bottom: 1px solid transparent;
   color: var(--text); font-size: 20px; font-weight: 600; padding: 2px 0;
   outline: none; letter-spacing: -0.01em;
+}
+.entry-title-input.inline-title-input {
+  width: auto;
+  min-width: 12ch;
+  max-width: min(100%, 56ch);
 }
 .entry-title-input:hover { border-bottom-color: var(--line-soft); }
 .entry-title-input:focus { border-bottom-color: var(--accent); }
@@ -609,7 +635,15 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 .app-detail-header {
   display: flex; align-items: center; gap: 12px; margin-bottom: 4px;
 }
-.app-detail-header .entry-title-input { flex: 1; }
+.app-detail-header .read-title,
+.app-detail-header .entry-title-input {
+  min-width: 0;
+}
+.app-detail-header .entry-title-input { flex: 0 1 auto; }
+.app-detail-header .header-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 
 .sitelink-card .sl-desc {
   color: var(--text-muted); font-size: 11.5px; margin-top: 1px;
@@ -808,20 +842,38 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 
 /* sitelinks card grid */
 .sitelinks-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 6px; padding: 10px var(--page-pad-x);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px; padding: 14px var(--page-pad-x);
   overflow-y: auto; flex: 1;
   align-content: start;
 }
 .sitelink-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
-  padding: 6px 9px; cursor: pointer; position: relative;
-  display: flex; flex-direction: column; gap: 1px;
-  font-size: 12px; min-height: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 12px 36px 12px 14px;
+  cursor: pointer; position: relative;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 14px; color: var(--text);
+  min-height: 64px;
+  min-width: 0;
 }
-.sitelink-card:hover { border-color: var(--accent); background: var(--panel-2); }
-.sitelink-card .sl-title { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sitelink-card .sl-url { color: var(--text-dim); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitelink-card:hover { border-color: var(--accent); background: var(--panel); }
+.sitelink-card .sl-title {
+  display: flex; align-items: center; gap: 7px; min-width: 0;
+  font-weight: 600; color: var(--text) !important; font-size: 14px;
+}
+.sitelink-card .sl-title span {
+  min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sitelink-card .sl-title svg { flex: 0 0 auto; }
+.sitelink-card .sl-desc {
+  color: var(--text-dim); font-size: 11.5px; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .sitelink-card .sl-edit {
   position: absolute; top: 6px; right: 6px; opacity: 0;
   background: var(--bg); border: 1px solid var(--line); color: var(--text-dim);

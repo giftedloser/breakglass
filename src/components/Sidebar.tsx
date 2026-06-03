@@ -254,7 +254,7 @@ export function Sidebar() {
             const pinned = n.entry.is_favorite;
             return (
               <li key={`e-${id}`}>
-                <div className={`tree-row leaf ${isSel('entry', id) ? 'is-selected' : ''}`}
+                <div className={`tree-row leaf leaf-entry ${isSel('entry', id) ? 'is-selected' : ''}`}
                      onContextMenu={(e) => openMenu(e, [
                        { label: pinned ? 'Unpin' : 'Pin', onClick: () => togglePinEntry(id) },
                        { label: 'Rename', onClick: () => renameEntry(id) },
@@ -277,7 +277,7 @@ export function Sidebar() {
             const pinned = n.app.is_favorite;
             return (
               <li key={`a-${id}`}>
-                <div className={`tree-row leaf ${isSel('app', id) ? 'is-selected' : ''}`}
+                <div className={`tree-row leaf leaf-app ${isSel('app', id) ? 'is-selected' : ''}`}
                      onContextMenu={(e) => openMenu(e, [
                        { label: pinned ? 'Unpin' : 'Pin', onClick: () => togglePinApp(id) },
                        { label: 'Rename', onClick: () => renameApp(id) },
