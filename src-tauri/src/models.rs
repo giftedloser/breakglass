@@ -164,5 +164,5 @@ pub fn serialize_tags(tags: &[String]) -> String {
 }
 
 pub const TOP_CATEGORIES: &[&str] = &[
-    "emergency", "servers", "dbs", "network", "apps", "contacts", "notes", "howto", "sitelinks", "weekly",
+    "emergency", "servers", "services", "dbs", "network", "apps", "contacts", "notes", "howto", "sitelinks", "weekly",
 ];

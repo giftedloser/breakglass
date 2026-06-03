@@ -29,6 +29,15 @@ export const KINDS: Record<TopCategory, KindDef[]> = {
     ]},
     { id: 'generic', label: 'Other', fields: [] },
   ],
+  services: [
+    { id: 'service', label: 'Service', fields: [
+      { key: 'name', label: 'Name' },
+      { key: 'host', label: 'Host / Server' },
+      { key: 'port', label: 'Port' },
+      { key: 'purpose', label: 'Purpose', wide: true },
+    ]},
+    { id: 'generic', label: 'Other', fields: [] },
+  ],
   dbs: [
     { id: 'database', label: 'Database', fields: [
       { key: 'name', label: 'Name' },

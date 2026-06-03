@@ -11,7 +11,7 @@ import { StructuredModule } from './StructuredModule';
 import { SettingsView } from './SettingsView';
 import { TopCategory } from '../types';
 
-const STRUCTURED_TOPS: TopCategory[] = ['servers', 'dbs', 'network', 'weekly'];
+const STRUCTURED_TOPS: TopCategory[] = ['servers', 'services', 'dbs', 'network', 'weekly'];
 
 export function ContentRouter() {
   const { selection, folders, entries } = useApp();

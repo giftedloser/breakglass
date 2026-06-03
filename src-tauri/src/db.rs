@@ -42,7 +42,7 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
               id           TEXT PRIMARY KEY,
               parent_id    TEXT,
               top_category TEXT NOT NULL CHECK(top_category IN
-                ('emergency','servers','dbs','network','apps','contacts','notes','howto','sitelinks')),
+                ('emergency','servers','services','dbs','network','apps','contacts','notes','howto','sitelinks')),
               name         TEXT NOT NULL,
               position     INTEGER NOT NULL DEFAULT 0,
               created_at   TEXT NOT NULL,
@@ -54,7 +54,7 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
               id           TEXT PRIMARY KEY,
               title        TEXT NOT NULL,
               top_category TEXT NOT NULL CHECK(top_category IN
-                ('emergency','servers','dbs','network','apps','contacts','notes','howto','sitelinks')),
+                ('emergency','servers','services','dbs','network','apps','contacts','notes','howto','sitelinks')),
               folder_id    TEXT,
               is_favorite  INTEGER NOT NULL DEFAULT 0,
               content      TEXT NOT NULL DEFAULT '{}',

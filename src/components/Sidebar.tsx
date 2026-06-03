@@ -18,7 +18,7 @@ type Node =
 // view is the module itself, not an EntryView. Apps is special: app *records*
 // (from the apps table) do show as expandable tree leaves so you can scan
 // every app quickly without scrolling chip filters.
-const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks', 'network', 'servers', 'dbs', 'weekly']);
+const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks', 'network', 'servers', 'services', 'dbs', 'weekly']);
 
 function buildTrees(folders: Folder[], entries: Entry[], apps: App[], _contacts: Contact[]) {
   const out = {} as Record<TopCategory, Record<string, Node[]>>;

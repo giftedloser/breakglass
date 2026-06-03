@@ -14,6 +14,7 @@ export interface TopMeta {
 export const TOPS: TopMeta[] = [
   // INFRA
   { id: 'servers',   label: 'Servers',      icon: 'Server',    group: 'infra' },
+  { id: 'services',  label: 'Services',     icon: 'Cog',       group: 'infra' },
   { id: 'dbs',       label: 'DBS & SQL',    icon: 'Database',  group: 'infra' },
   { id: 'network',   label: 'Network',      icon: 'Network',   group: 'infra' },
   // OPS

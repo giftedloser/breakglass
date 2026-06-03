@@ -1,6 +1,7 @@
 export type TopCategory =
   | 'emergency'
   | 'servers'
+  | 'services'
   | 'dbs'
   | 'network'
   | 'apps'
