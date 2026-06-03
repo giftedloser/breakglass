@@ -771,6 +771,7 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 /* home launchpad */
 .home-command-strip {
   display: flex; align-items: stretch; justify-content: space-between; gap: 10px;
+  flex-wrap: wrap;
   background:
     linear-gradient(135deg, rgba(214,91,59,0.14), transparent 42%),
     var(--panel);
@@ -778,6 +779,7 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
   padding: 8px; margin-bottom: 10px;
 }
 .home-command-actions {
+  flex: 0 0 auto;
   display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; justify-content: flex-end;
   border-left: 1px solid var(--line); padding-left: 10px;
 }
@@ -786,8 +788,8 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
   white-space: nowrap;
 }
 .home-stats {
-  flex: 1 1 auto; min-width: 0;
-  display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr));
+  flex: 1 1 560px; min-width: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px; margin-bottom: 0;
 }
 .home-stat {
@@ -955,7 +957,7 @@ html.light .ctx-menu { box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
 
 @media (max-width: 900px) {
   :root { --page-pad-x: 18px; }
-  .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-stats { flex-basis: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-command-strip { flex-direction: column; }
   .home-command-actions {
     justify-content: flex-start; border-left: 0; border-top: 1px solid var(--line);
