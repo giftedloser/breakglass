@@ -68,24 +68,19 @@ export function HomeView() {
   return (
     <div className="content-pane">
       <section className="home-command-strip">
-        <div className="home-command-copy">
-          <span className="home-kicker">Shortcuts</span>
-          <strong>Emergency access and weekly report.</strong>
+        <div className="home-stats">
+          {statCards.map(({ label, value, icon: Icon, action }) => (
+            <button key={label} className="home-stat" onClick={action}>
+              <Icon size={14} />
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </button>
+          ))}
         </div>
         <div className="home-command-actions">
           <button className="primary-btn" onClick={() => selectTop('emergency')}><AlertTriangle size={12} /> Emergency</button>
           <button className="ghost-btn" onClick={newWeeklyReport}><Plus size={12} /> Weekly report</button>
         </div>
-      </section>
-
-      <section className="home-stats">
-        {statCards.map(({ label, value, icon: Icon, action }) => (
-          <button key={label} className="home-stat" onClick={action}>
-            <Icon size={14} />
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </button>
-        ))}
       </section>
 
       <section className="panel">

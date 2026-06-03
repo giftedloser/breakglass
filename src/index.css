@@ -770,27 +770,30 @@ html.light .code-input { background: #fafaf6 !important; color: #1a1816 !importa
 
 /* home launchpad */
 .home-command-strip {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  display: flex; align-items: stretch; justify-content: space-between; gap: 10px;
   background:
     linear-gradient(135deg, rgba(214,91,59,0.14), transparent 42%),
     var(--panel);
   border: 1px solid var(--line); border-radius: 6px;
-  padding: 14px 16px; margin-bottom: 10px;
+  padding: 8px; margin-bottom: 10px;
 }
-.home-command-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.home-kicker {
-  color: var(--accent); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+.home-command-actions {
+  display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; justify-content: flex-end;
+  border-left: 1px solid var(--line); padding-left: 10px;
 }
-.home-command-copy strong { color: var(--text); font-size: 14px; letter-spacing: -0.01em; }
-.home-command-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.home-command-actions .primary-btn,
+.home-command-actions .ghost-btn {
+  white-space: nowrap;
+}
 .home-stats {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px; margin-bottom: 10px;
+  flex: 1 1 auto; min-width: 0;
+  display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 8px; margin-bottom: 0;
 }
 .home-stat {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  padding: 10px 12px; cursor: pointer; text-align: left; color: var(--text-muted);
+  min-height: 38px; padding: 8px 10px; cursor: pointer; text-align: left; color: var(--text-muted);
 }
 .home-stat:hover { background: var(--panel-2); color: var(--text); border-color: var(--line); }
 .home-stat span {
@@ -953,6 +956,9 @@ html.light .ctx-menu { box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
 @media (max-width: 900px) {
   :root { --page-pad-x: 18px; }
   .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-command-strip { align-items: flex-start; flex-direction: column; }
-  .home-command-actions { justify-content: flex-start; }
+  .home-command-strip { flex-direction: column; }
+  .home-command-actions {
+    justify-content: flex-start; border-left: 0; border-top: 1px solid var(--line);
+    padding-left: 0; padding-top: 8px;
+  }
 }
