@@ -6,9 +6,13 @@ import { useApp } from '../context/AppContext';
 export function TitleBar() {
   const { dispatch } = useApp();
   const [maximized, setMaximized] = useState(false);
-  const win = getCurrentWindow();
+  const [win] = useState(() => {
+    try { return getCurrentWindow(); }
+    catch { return null; }
+  });
 
   useEffect(() => {
+    if (!win) return;
     let mounted = true;
     const sync = async () => {
       try { const m = await win.isMaximized(); if (mounted) setMaximized(m); } catch {/*ignore*/}
@@ -16,7 +20,7 @@ export function TitleBar() {
     void sync();
     const unlisten = win.onResized(() => sync());
     return () => { mounted = false; void unlisten.then((u) => u()); };
-  }, []);
+  }, [win]);
 
   return (
     <div className="title-bar" data-tauri-drag-region>
@@ -31,13 +35,15 @@ export function TitleBar() {
         <kbd>Ctrl K</kbd>
       </button>
       <div className="title-bar-spacer" data-tauri-drag-region />
-      <div className="title-bar-controls">
-        <button className="tb-btn" title="Minimize" onClick={() => win.minimize()}><Minus size={14} /></button>
-        <button className="tb-btn" title={maximized ? 'Restore' : 'Maximize'} onClick={() => win.toggleMaximize()}>
-          {maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-        </button>
-        <button className="tb-btn tb-close" title="Close" onClick={() => win.close()}><X size={14} /></button>
-      </div>
+      {win && (
+        <div className="title-bar-controls">
+          <button className="tb-btn" title="Minimize" onClick={() => win.minimize()}><Minus size={14} /></button>
+          <button className="tb-btn" title={maximized ? 'Restore' : 'Maximize'} onClick={() => win.toggleMaximize()}>
+            {maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          </button>
+          <button className="tb-btn tb-close" title="Close" onClick={() => win.close()}><X size={14} /></button>
+        </div>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ type Node =
 // (from the apps table) do show as expandable tree leaves so you can scan
 // every app quickly without scrolling chip filters.
 const MODULE_TOPS = new Set<TopCategory>(['contacts', 'sitelinks', 'network', 'servers', 'services', 'dbs', 'weekly']);
+const SIDEBAR_TREE_TOPS = new Set<TopCategory>(['apps']);
 
 function buildTrees(folders: Folder[], entries: Entry[], apps: App[], _contacts: Contact[]) {
   const out = {} as Record<TopCategory, Record<string, Node[]>>;
@@ -320,6 +321,7 @@ export function Sidebar() {
     const topId = `top-${top.id}`;
     const open = isExpanded(topId);
     const isModule = MODULE_TOPS.has(top.id);
+    const hasSidebarTree = SIDEBAR_TREE_TOPS.has(top.id);
     const isApps = top.id === 'apps';
     return (
       <div key={top.id} className="tree-top">
@@ -329,12 +331,12 @@ export function Sidebar() {
                ...(isApps ? [{ label: 'New app', onClick: () => newAppAt(null) }] : []),
                { label: 'New folder', onClick: () => addFolderAt(top.id, null) },
              ])}>
-          {!isModule && (
+          {(!isModule || hasSidebarTree) && (
             <button className="tree-twisty" onClick={() => toggleExpand(topId)}>
               <ChevronRight className={`twisty-icon ${open ? 'open' : ''}`} size={12} />
             </button>
           )}
-          {isModule && <span className="tree-twisty" />}
+          {isModule && !hasSidebarTree && <span className="tree-twisty" />}
           <button className="tree-name top-name" onClick={() => selectTop(top.id)} onDoubleClick={() => toggleExpand(topId)}>
             <span className="truncate">{top.label}</span>
           </button>
@@ -347,7 +349,7 @@ export function Sidebar() {
             <button title="New folder" onClick={(e) => { e.stopPropagation(); addFolderAt(top.id, null); }}><FolderPlus size={11} /></button>
           </div>
         </div>
-        {!isModule && open && renderNodes(top, '__root__')}
+        {(!isModule || hasSidebarTree) && open && renderNodes(top, '__root__')}
       </div>
     );
   };

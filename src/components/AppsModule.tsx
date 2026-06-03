@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Star } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
@@ -13,6 +13,25 @@ interface Props { initialFolder: string | null }
 export function AppsModule({ initialFolder }: Props) {
   const { apps, folders, selection, selectApp, dispatch } = useApp();
   const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
+
+  useEffect(() => {
+    setFolderFilter(initialFolder);
+  }, [initialFolder]);
+
+  useEffect(() => {
+    if (selection.kind === 'top' && selection.top === 'apps') {
+      setFolderFilter(null);
+      return;
+    }
+    if (selection.kind === 'folder' && folders.some((f) => f.id === selection.folder_id && f.top_category === 'apps')) {
+      setFolderFilter(selection.folder_id);
+      return;
+    }
+    if (selection.kind === 'app') {
+      const app = apps.find((a) => a.id === selection.app_id);
+      if (app) setFolderFilter(app.folder_id);
+    }
+  }, [selection, folders, apps]);
 
   const appFolders = useMemo(
     () => folders.filter((f) => f.top_category === 'apps').sort((a, b) => a.name.localeCompare(b.name)),

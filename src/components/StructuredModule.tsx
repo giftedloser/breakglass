@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Star } from 'lucide-react';
 import { format, startOfWeek } from 'date-fns';
@@ -19,6 +19,31 @@ export function StructuredModule({ top, initialFolder }: Props) {
   const { entries, folders, selection, selectEntry, dispatch } = useApp();
   const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
   const [kindFilter, setKindFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFolderFilter(initialFolder);
+    setKindFilter(null);
+  }, [top, initialFolder]);
+
+  useEffect(() => {
+    if (selection.kind === 'top' && selection.top === top) {
+      setFolderFilter(null);
+      setKindFilter(null);
+      return;
+    }
+    if (selection.kind === 'folder' && folders.some((f) => f.id === selection.folder_id && f.top_category === top)) {
+      setFolderFilter(selection.folder_id);
+      setKindFilter(null);
+      return;
+    }
+    if (selection.kind === 'entry') {
+      const entry = entries.find((e) => e.id === selection.entry_id && e.top_category === top);
+      if (entry) {
+        setFolderFilter(entry.folder_id);
+        setKindFilter(null);
+      }
+    }
+  }, [selection, top, folders, entries]);
 
   const kinds = KINDS[top];
   const showKindFilter = kinds.length > 1;

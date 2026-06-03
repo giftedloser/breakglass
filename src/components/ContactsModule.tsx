@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ListRowMenu } from './ListRowMenu';
 import { Plus } from 'lucide-react';
@@ -12,6 +12,25 @@ interface Props { initialFolder: string | null }
 export function ContactsModule({ initialFolder }: Props) {
   const { contacts, folders, selection, selectContact, dispatch } = useApp();
   const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
+
+  useEffect(() => {
+    setFolderFilter(initialFolder);
+  }, [initialFolder]);
+
+  useEffect(() => {
+    if (selection.kind === 'top' && selection.top === 'contacts') {
+      setFolderFilter(null);
+      return;
+    }
+    if (selection.kind === 'folder' && folders.some((f) => f.id === selection.folder_id && f.top_category === 'contacts')) {
+      setFolderFilter(selection.folder_id);
+      return;
+    }
+    if (selection.kind === 'contact') {
+      const contact = contacts.find((c) => c.id === selection.contact_id);
+      if (contact) setFolderFilter(contact.folder_id);
+    }
+  }, [selection, folders, contacts]);
 
   const contactFolders = useMemo(
     () => folders.filter((f) => f.top_category === 'contacts').sort((a, b) => a.name.localeCompare(b.name)),

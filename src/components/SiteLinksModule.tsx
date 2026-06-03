@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ExternalLink, Pencil, Plus, Star } from 'lucide-react';
 import { ModuleFolderChips } from './ModuleFolderChips';
@@ -33,8 +33,27 @@ const displayLinkTitle = (title: string, url: string | null, description: string
 };
 
 export function SiteLinksModule({ initialFolder }: Props) {
-  const { entries, folders, selectEntry, dispatch } = useApp();
+  const { entries, folders, selection, selectEntry, dispatch } = useApp();
   const [folderFilter, setFolderFilter] = useState<string | null>(initialFolder);
+
+  useEffect(() => {
+    setFolderFilter(initialFolder);
+  }, [initialFolder]);
+
+  useEffect(() => {
+    if (selection.kind === 'top' && selection.top === 'sitelinks') {
+      setFolderFilter(null);
+      return;
+    }
+    if (selection.kind === 'folder' && folders.some((f) => f.id === selection.folder_id && f.top_category === 'sitelinks')) {
+      setFolderFilter(selection.folder_id);
+      return;
+    }
+    if (selection.kind === 'entry') {
+      const entry = entries.find((e) => e.id === selection.entry_id && e.top_category === 'sitelinks');
+      if (entry) setFolderFilter(entry.folder_id);
+    }
+  }, [selection, folders, entries]);
 
   const linkFolders = useMemo(
     () => folders.filter((f) => f.top_category === 'sitelinks').sort((a, b) => a.name.localeCompare(b.name)),

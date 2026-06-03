@@ -14,7 +14,7 @@ import { TopCategory } from '../types';
 const STRUCTURED_TOPS: TopCategory[] = ['servers', 'services', 'dbs', 'network', 'weekly'];
 
 export function ContentRouter() {
-  const { selection, folders, entries } = useApp();
+  const { selection, folders, entries, apps, contacts } = useApp();
   switch (selection.kind) {
     case 'home':     return <HomeView />;
     case 'pinned':   return <PinnedView />;
@@ -38,11 +38,17 @@ export function ContentRouter() {
       const entry = entries.find((e) => e.id === selection.entry_id);
       // Structured entries render inside their module's master-detail.
       if (entry && STRUCTURED_TOPS.includes(entry.top_category)) {
-        return <StructuredModule top={entry.top_category} initialFolder={null} />;
+        return <StructuredModule top={entry.top_category} initialFolder={entry.folder_id} />;
       }
       return <EntryView key={selection.entry_id} entryId={selection.entry_id} />;
     }
-    case 'contact': return <ContactsModule initialFolder={null} />;
-    case 'app':     return <AppsModule initialFolder={null} />;
+    case 'contact': {
+      const contact = contacts.find((c) => c.id === selection.contact_id);
+      return <ContactsModule initialFolder={contact?.folder_id ?? null} />;
+    }
+    case 'app': {
+      const app = apps.find((a) => a.id === selection.app_id);
+      return <AppsModule initialFolder={app?.folder_id ?? null} />;
+    }
   }
 }
